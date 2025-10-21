@@ -33,6 +33,7 @@
             --button-bg-secondary: #4a515c; /* Secondary button background */
             --fab-bg: #58a6ff; /* FAB background, e.g., accent blue */
             --fab-icon-color: var(--bg-dark); /* FAB icon color, dark for contrast */
+            --edit-button-bg: #f0883e; /* Orange for edit actions */
         }
 
         body {
@@ -96,6 +97,7 @@
         .main-content {
             flex-grow: 1;
             padding: 24px 16px;
+            padding-bottom: 150px; /* Added padding to ensure space for FABs and menu */
             display: flex;
             flex-direction: column;
             gap: 24px;
@@ -108,7 +110,7 @@
             flex-direction: column;
             gap: 24px;
             height: 100%;
-            position: relative; /* Needed for absolute positioning of FABs */
+            /* Removed position: relative; here as FABs will be fixed to viewport */
         }
 
         .progress-section {
@@ -168,7 +170,6 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            /* Removed position: relative; as FABs are now relative to .tab-content */
         }
 
         .input-card label.sr-only {
@@ -254,8 +255,8 @@
 
         /* --- Floating Action Buttons (FABs) --- */
         .fab-button {
-            position: absolute;
-            bottom: 75px; /* Distance from bottom - Adjusted */
+            position: fixed; /* Changed from absolute to fixed */
+            bottom: 75px; /* Distance from bottom, above tab bar */
             right: 20px; /* Distance from right */
             width: 56px;
             height: 56px;
@@ -307,8 +308,8 @@
 
         /* --- Home Menu Overlay --- */
         .home-menu-overlay {
-            position: absolute;
-            bottom: 140px; /* Position above the menu FAB - Adjusted */
+            position: fixed; /* Changed from absolute to fixed */
+            bottom: 140px; /* Position above the menu FAB */
             right: 20px;
             background-color: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -593,6 +594,64 @@
             -webkit-overflow-scrolling: touch;
         }
 
+        .history-action-buttons {
+            display: flex;
+            gap: 8px; /* Space between buttons */
+            justify-content: flex-end; /* Align to the right */
+        }
+
+        .history-action-buttons button {
+            padding: 6px 10px;
+            border-radius: var(--border-radius);
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border: none;
+        }
+
+        .history-action-buttons .edit-btn {
+            background-color: var(--edit-button-bg); /* Use accent orange for edit */
+            color: var(--bg-dark);
+        }
+        .history-action-buttons .edit-btn:hover {
+            background-color: #ff9800; /* Lighter orange on hover */
+        }
+
+        .history-action-buttons .save-btn {
+            background-color: var(--accent-green);
+            color: var(--bg-dark);
+        }
+        .history-action-buttons .save-btn:hover {
+            background-color: #4ac25d;
+        }
+
+        .history-action-buttons .cancel-btn {
+            background-color: var(--button-bg-secondary);
+            color: var(--text-light);
+        }
+        .history-action-buttons .cancel-btn:hover {
+            background-color: #5a626e;
+        }
+
+        .history-edit-input {
+            width: 80px; /* Small width for the input */
+            padding: 5px 8px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            background-color: var(--input-bg);
+            color: var(--text-light);
+            font-size: 0.85em;
+            outline: none;
+            text-align: right;
+            -moz-appearance: textfield; /* Hide arrows in Firefox */
+        }
+        .history-edit-input::-webkit-outer-spin-button,
+        .history-edit-input::-webkit-inner-spin-button {
+            -webkit-appearance: none; /* Hide arrows in Chrome/Safari */
+            margin: 0;
+        }
+
 
         /* Responsive adjustments */
         @media (max-width: 479px) {
@@ -640,6 +699,13 @@
                 padding: 8px 10px;
                 font-size: 0.85em;
             }
+            .history-edit-input {
+                width: 60px; /* Even smaller for mobile tables */
+            }
+            .history-action-buttons button {
+                padding: 4px 6px;
+                font-size: 0.75em;
+            }
         }
 
         @media (min-width: 480px) {
@@ -654,6 +720,7 @@
             }
             .main-content {
                 padding: 30px 24px;
+                padding-bottom: 150px; /* Added padding to ensure space for FABs and menu */
             }
             .input-card {
                 flex-direction: row;
@@ -711,17 +778,13 @@
             return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
         };
 
-        // Helper function to format date for history display
+        // Helper function to format date for history display (MM/DD/YYYY)
         const formatEntryDate = (isoString) => {
             const date = new Date(isoString);
-            return date.toLocaleString('en-IN', {
+            return date.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false
+                day: '2-digit'
             });
         };
 
@@ -748,7 +811,31 @@
             };
         };
 
-        const HistoryModal = ({ title, history, onClose }) => {
+        const HistoryModal = ({ title, history, onClose, onEditEntry, showTypeColumn }) => {
+            const [editingId, setEditingId] = useState(null);
+            const [editingAmount, setEditingAmount] = useState('');
+
+            const handleEditClick = (entry) => {
+                setEditingId(entry.id);
+                setEditingAmount(entry.amount.toString());
+            };
+
+            const handleSaveEdit = (entry) => {
+                const newAmount = parseFloat(editingAmount);
+                if (isNaN(newAmount) || newAmount <= 0) {
+                    alert('Please enter a valid positive number.');
+                    return;
+                }
+                onEditEntry(entry.id, newAmount, entry.type); // Pass type back for correct history update
+                setEditingId(null);
+                setEditingAmount('');
+            };
+
+            const handleCancelEdit = () => {
+                setEditingId(null);
+                setEditingAmount('');
+            };
+
             return (
                 <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
                     <div className="modal-content">
@@ -760,15 +847,45 @@
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Amount</th>
                                             <th>Date</th>
+                                            {showTypeColumn && <th>Type</th>}
+                                            <th>Amount</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {history.map((entry, index) => (
-                                            <tr key={index}>
-                                                <td>{formatCurrency(entry.amount)}</td>
+                                        {history.map((entry) => (
+                                            <tr key={entry.id}>
                                                 <td>{formatEntryDate(entry.date)}</td>
+                                                {showTypeColumn && <td>{entry.type}</td>}
+                                                {editingId === entry.id ? (
+                                                    <>
+                                                        <td>
+                                                            <input
+                                                                type="number"
+                                                                className="history-edit-input"
+                                                                value={editingAmount}
+                                                                onChange={(e) => setEditingAmount(e.target.value)}
+                                                                min="0"
+                                                                aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}
+                                                            />
+                                                        </td>
+                                                        <td className="history-action-buttons">
+                                                            <button className="save-btn" onClick={() => handleSaveEdit(entry)} aria-label="Save edited amount">Save</button>
+                                                            <button className="cancel-btn" onClick={handleCancelEdit} aria-label="Cancel editing">Cancel</button>
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <td>{formatCurrency(entry.amount)}</td>
+                                                        <td className="history-action-buttons">
+                                                            {/* Only show edit if ID exists */}
+                                                            {entry.id && (
+                                                                <button className="edit-btn" onClick={() => handleEditClick(entry)} aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}>Edit</button>
+                                                            )}
+                                                        </td>
+                                                    </>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -788,11 +905,14 @@
             
             const [freelancingHistory, setFreelancingHistory] = useState(() => {
                 const stored = localStorage.getItem('freelancingHistory');
-                return stored ? JSON.parse(stored) : [];
+                // Ensure IDs are present for old data for consistency, though they won't be editable unless re-added
+                // Use a combination of Date.now() and Math.random() for reasonable uniqueness
+                return stored ? JSON.parse(stored).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) })) : [];
             });
             const [sellingHistory, setSellingHistory] = useState(() => {
                 const stored = localStorage.getItem('sellingHistory');
-                return stored ? JSON.parse(stored) : [];
+                 // Ensure IDs are present for old data
+                return stored ? JSON.parse(stored).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) })) : [];
             });
 
             const freelancingIncome = useMemo(() => 
@@ -843,12 +963,8 @@
                     return;
                 }
 
-                const confirmationMessage = `Are you sure you want to add ${formatCurrency(amount)} to your ${type} income?`;
-                if (!window.confirm(confirmationMessage)) {
-                    return;
-                }
-
-                const newEntry = { amount, date: new Date().toISOString() };
+                // No confirmation dialog as per user request
+                const newEntry = { id: Date.now().toString(), amount, date: new Date().toISOString(), type }; // Added ID and type
 
                 if (type === 'freelancing') {
                     setFreelancingHistory(prev => [...prev, newEntry]);
@@ -858,6 +974,23 @@
                     setSellingInput('');
                 }
             }, [freelancingInput, sellingInput]);
+
+            const handleEditHistoryEntry = useCallback((id, newAmount, type) => {
+                if (type === 'Freelancing') { // Match the 'type' string used when mapping for overallHistory
+                    setFreelancingHistory(prev =>
+                        prev.map(entry =>
+                            entry.id === id ? { ...entry, amount: newAmount, date: new Date().toISOString() } : entry // Update date on edit
+                        )
+                    );
+                } else if (type === 'Selling') { // Match the 'type' string
+                    setSellingHistory(prev =>
+                        prev.map(entry =>
+                            entry.id === id ? { ...entry, amount: newAmount, date: new Date().toISOString() } : entry // Update date on edit
+                        )
+                    );
+                }
+            }, []);
+
 
             const renderProgressBar = (current, target, label) => {
                 const percentage = Math.min(100, (current / target) * 100);
@@ -878,6 +1011,15 @@
                     </div>
                 );
             };
+
+            // Combine and sort histories for overall view
+            const overallHistory = useMemo(() => {
+                const combined = [
+                    ...freelancingHistory.map(entry => ({ ...entry, type: 'Freelancing' })),
+                    ...sellingHistory.map(entry => ({ ...entry, type: 'Selling' }))
+                ];
+                return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
+            }, [freelancingHistory, sellingHistory]);
 
             return (
                 <div className="app-container">
@@ -915,7 +1057,7 @@
                                         </div>
                                     )}
                                 </div>
-                                <button className="fab-button menu-fab" onClick={() => setShowHomeMenu(prev => !prev)} aria-label="Open Home Menu">
+                                <button className="fab-button menu-fab" id="home-menu-fab" onClick={() => setShowHomeMenu(prev => !prev)} aria-label="Open Home Menu">
                                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                                     </svg>
@@ -934,8 +1076,10 @@
                                 {showOverallHistory && (
                                     <HistoryModal
                                         title="Overall Combined"
-                                        history={[...freelancingHistory, ...sellingHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())}
+                                        history={overallHistory}
                                         onClose={() => setShowOverallHistory(false)}
+                                        onEditEntry={handleEditHistoryEntry}
+                                        showTypeColumn={true}
                                     />
                                 )}
                             </div>
@@ -955,6 +1099,7 @@
                                             onChange={(e) => setFreelancingInput(e.target.value)}
                                             placeholder="Enter income amount"
                                             min="0"
+                                            aria-describedby="freelancing-income-help"
                                         />
                                     </div>
                                     <button onClick={() => handleAddIncome('freelancing')}>Add Income</button>
@@ -969,6 +1114,8 @@
                                         title="Freelancing"
                                         history={freelancingHistory}
                                         onClose={() => setShowFreelancingHistory(false)}
+                                        onEditEntry={handleEditHistoryEntry}
+                                        showTypeColumn={false}
                                     />
                                 )}
                             </div>
@@ -988,6 +1135,7 @@
                                             onChange={(e) => setSellingInput(e.target.value)}
                                             placeholder="Enter income amount"
                                             min="0"
+                                            aria-describedby="selling-income-help"
                                         />
                                     </div>
                                     <button onClick={() => handleAddIncome('selling')}>Add Income</button>
@@ -1002,6 +1150,8 @@
                                         title="Selling"
                                         history={sellingHistory}
                                         onClose={() => setShowSellingHistory(false)}
+                                        onEditEntry={handleEditHistoryEntry}
+                                        showTypeColumn={false}
                                     />
                                 )}
                             </div>
