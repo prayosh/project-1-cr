@@ -1,3 +1,4 @@
+
 // Global state object
 const state = {
     activeTab: 'home',
@@ -16,14 +17,14 @@ const state = {
     editingId: null, // For HistoryModal
     editingAmount: '', // For HistoryModal
     activeRowForActions: null, // For HistoryModal long-press
-    longPressTimer: null, // For HistoryModal long-press
+    longPressTimer: null, // For HistoryModal long-press - store timer ID here
     showDeleteConfirmation: false, // For HistoryModal
     entryToDelete: null, // For HistoryModal
     longPressHandled: false, // To prevent click after long press
 };
 
 const targetDate = new Date('2026-12-31T23:59:59');
-let countdownInterval;
+let countdownInterval = null; // Initialize countdownInterval
 
 const LONG_PRESS_DELAY = 500; // milliseconds
 
@@ -65,11 +66,19 @@ const calculateTimeRemaining = (targetDate) => {
 const loadState = () => {
     const storedFreelancing = localStorage.getItem('freelancingHistory');
     if (storedFreelancing) {
-        state.freelancingHistory = JSON.parse(storedFreelancing).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) }));
+        state.freelancingHistory = JSON.parse(storedFreelancing).map(entry => ({ 
+            ...entry, 
+            id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2),
+            type: entry.type || 'freelancing' // Ensure type is present
+        }));
     }
     const storedSelling = localStorage.getItem('sellingHistory');
     if (storedSelling) {
-        state.sellingHistory = JSON.parse(storedSelling).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) }));
+        state.sellingHistory = JSON.parse(storedSelling).map(entry => ({ 
+            ...entry, 
+            id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2),
+            type: entry.type || 'selling' // Ensure type is present
+        }));
     }
 };
 
@@ -134,7 +143,7 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
 
     let historyTableHtml = '';
     if (history.length === 0) {
-        historyTableHtml = '<p>No entries yet.</p>';
+        historyTableHtml = '<p style="text-align:center;">No entries yet.</p>';
     } else {
         historyTableHtml = `
             <div class="table-container">
@@ -144,6 +153,7 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <th>Date</th>
                             ${showTypeColumn ? '<th>Type</th>' : ''}
                             <th>Amount</th>
+                            <th style="width: 120px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -151,14 +161,13 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <tr 
                                 data-id="${entry.id}" 
                                 data-type="${entry.type}"
-                                class="${state.activeRowForActions === entry.id ? 'active-actions' : ''}"
                                 tabindex="0"
                                 role="row"
                             >
                                 <td>${formatEntryDate(entry.date)}</td>
                                 ${showTypeColumn ? `<td>${entry.type}</td>` : ''}
-                                <td style="position: relative;">
-                                    ${state.editingId === entry.id ? `
+                                ${state.editingId === entry.id ? `
+                                    <td>
                                         <input
                                             type="number"
                                             class="history-edit-input"
@@ -167,18 +176,18 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                                             aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}"
                                             data-id="${entry.id}"
                                         />
-                                        <div class="history-action-buttons-overlay visible">
-                                            <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
-                                            <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
-                                        </div>
-                                    ` : `
-                                        ${formatCurrency(entry.amount)}
-                                        <div class="history-action-buttons-overlay">
-                                            <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
-                                            <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
-                                        </div>
-                                    `}
-                                </td>
+                                    </td>
+                                    <td class="history-action-buttons visible">
+                                        <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
+                                        <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
+                                    </td>
+                                ` : `
+                                    <td>${formatCurrency(entry.amount)}</td>
+                                    <td class="history-action-buttons ${state.activeRowForActions === entry.id ? 'visible' : ''}">
+                                        <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
+                                        <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
+                                    </td>
+                                `}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -202,10 +211,11 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
         state.editingId = null; // Clear editing state
         state.showDeleteConfirmation = false; // Clear confirmation state
         state.entryToDelete = null; // Clear entry to delete
-        onClose();
+        onClose(); // Call the specific onClose handler
+        renderApp(); // Re-render to ensure modal is removed from DOM
     });
 
-    // Add event listeners for table rows and buttons
+    // Event delegation for table rows and buttons
     modalDiv.querySelectorAll('tbody tr').forEach(row => {
         const entryId = row.dataset.id;
         const entryType = row.dataset.type;
@@ -213,9 +223,13 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
 
         const handleLongPressStart = (event) => {
             state.longPressHandled = false;
-            // Prevent text selection or other default browser actions on long press
             if (event.type === 'touchstart') {
-                event.preventDefault(); 
+                event.preventDefault(); // Prevent scroll/zoom
+            }
+
+            // Clear any existing timer to prevent multiple triggers
+            if (state.longPressTimer) {
+                clearTimeout(state.longPressTimer);
             }
 
             state.longPressTimer = setTimeout(() => {
@@ -225,38 +239,64 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
             }, LONG_PRESS_DELAY);
         };
 
-        const handleLongPressEnd = () => {
+        const handleLongPressEnd = (event) => {
             if (state.longPressTimer) {
                 clearTimeout(state.longPressTimer);
                 state.longPressTimer = null;
             }
-            // If it was a short press, hide actions immediately
+            
+            // If it was a short press (longPressHandled is false),
+            // or if we're not currently editing this row, hide actions.
+            // But only hide if the active row *is* this row.
             if (!state.longPressHandled && state.activeRowForActions === entryId && state.editingId !== entryId) {
                 state.activeRowForActions = null;
                 renderApp();
             }
             state.longPressHandled = false; // Reset for next interaction
         };
-
-        // Add `pointerleave` for mouse, `touchend`, `touchcancel` for touch
-        row.addEventListener('mousedown', handleLongPressStart);
-        row.addEventListener('mouseup', handleLongPressEnd);
-        row.addEventListener('mouseleave', handleLongPressEnd); // Use mouseleave for desktop hover exit
-        row.addEventListener('touchstart', handleLongPressStart, { passive: false }); // passive: false to allow preventDefault
-        row.addEventListener('touchend', handleLongPressEnd);
-        row.addEventListener('touchcancel', handleLongPressEnd);
         
-        // Hide actions if clicking another row or outside
-        document.addEventListener('mousedown', (e) => {
-            if (!row.contains(e.target) && state.activeRowForActions === entryId && state.editingId !== entryId) {
-                state.activeRowForActions = null;
-                renderApp();
+        // Use a single event listener for mouseup, touchend, touchcancel
+        // and mouseleave to cover all "end" scenarios.
+        const addEndListeners = (element) => {
+            element.addEventListener('mouseup', handleLongPressEnd);
+            element.addEventListener('mouseleave', handleLongPressEnd);
+            element.addEventListener('touchend', handleLongPressEnd);
+            element.addEventListener('touchcancel', handleLongPressEnd);
+        };
+
+        row.addEventListener('mousedown', handleLongPressStart);
+        row.addEventListener('touchstart', handleLongPressStart, { passive: false });
+        addEndListeners(row);
+
+        // Hide actions if clicking another row or outside the modal
+        const dismissActions = (event) => {
+            if (!modalDiv.contains(event.target) || (!row.contains(event.target) && state.activeRowForActions === entryId && state.editingId !== entryId)) {
+                if (state.activeRowForActions === entryId) {
+                    state.activeRowForActions = null;
+                    renderApp();
+                }
             }
-        });
+        };
+
+        // Delay attaching this general dismiss listener
+        // to avoid immediate dismissal on the same click that opened the modal.
+        setTimeout(() => {
+            document.addEventListener('mousedown', dismissActions);
+            document.addEventListener('touchstart', dismissActions);
+            // Cleanup on modal close
+            modalDiv.querySelector('.modal-close-button').addEventListener('click', () => {
+                document.removeEventListener('mousedown', dismissActions);
+                document.removeEventListener('touchstart', dismissActions);
+            }, { once: true });
+        }, 0);
+
 
         if (state.editingId === entryId) {
             const input = row.querySelector('.history-edit-input');
-            if (input) input.addEventListener('input', (e) => { state.editingAmount = e.target.value; });
+            if (input) {
+                input.addEventListener('input', (e) => { state.editingAmount = e.target.value; });
+                input.focus(); // Focus the input when in edit mode
+            }
             
             const saveBtn = row.querySelector('.save-btn');
             if (saveBtn) saveBtn.addEventListener('click', () => {
@@ -265,7 +305,6 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                     alert('Please enter a valid positive number.');
                     return;
                 }
-                // Determine the correct type for the entry, preferring tabType if available, otherwise entryType
                 const effectiveType = tabType || entryType;
                 onEditEntry(entryId, newAmount, effectiveType);
                 state.editingId = null;
@@ -283,7 +322,7 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
         } else {
             const editBtn = row.querySelector('.edit-btn');
             if (editBtn) editBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent row's click from interfering
+                e.stopPropagation(); // Prevent row's click/touch from interfering
                 state.editingId = entryId;
                 state.editingAmount = entry.amount.toString();
                 state.activeRowForActions = null; // Hide actions after clicking edit
@@ -291,7 +330,7 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
             });
             const deleteBtn = row.querySelector('.delete-btn');
             if (deleteBtn) deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent row's click from interfering
+                e.stopPropagation(); // Prevent row's click/touch from interfering
                 state.entryToDelete = entry;
                 state.showDeleteConfirmation = true;
                 state.activeRowForActions = null; // Hide actions after clicking delete
@@ -331,7 +370,8 @@ const renderHomeMenuOverlay = () => {
             Overall Income History
         </button>
     `;
-    menuDiv.querySelector('.overall-history-btn').addEventListener('click', () => {
+    const overallHistoryBtn = menuDiv.querySelector('.overall-history-btn');
+    overallHistoryBtn.addEventListener('click', () => {
         state.showOverallHistory = true;
         state.showHomeMenu = false;
         renderApp();
@@ -349,12 +389,12 @@ const renderHomeMenuOverlay = () => {
 
     const homeMenuFab = document.getElementById('home-menu-fab');
 
-    // Event listeners for closing menu on click outside or escape key
     const handleClickOutside = (event) => {
-        if (!menuDiv.contains(event.target) && (homeMenuFab && !homeMenuFab.contains(event.target))) {
+        // Check if the click is outside the menu AND not on the FAB button that opens it
+        if (!menuDiv.contains(event.target) && (!homeMenuFab || !homeMenuFab.contains(event.target))) {
             state.showHomeMenu = false;
             renderApp();
-            // Clean up listeners
+            // Cleanup listeners after closing
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
@@ -365,7 +405,7 @@ const renderHomeMenuOverlay = () => {
         if (event.key === 'Escape') {
             state.showHomeMenu = false;
             renderApp();
-            // Clean up listeners
+            // Cleanup listeners after closing
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
@@ -386,6 +426,7 @@ const renderApp = () => {
 
     // Clear previous content
     root.innerHTML = '';
+    // Clear all dynamically added modals/overlays from body
     document.body.querySelectorAll('.modal-overlay').forEach(modal => modal.remove());
     document.body.querySelectorAll('.home-menu-overlay').forEach(menu => menu.remove());
     document.body.querySelectorAll('.sidebar-backdrop').forEach(backdrop => backdrop.remove());
@@ -421,19 +462,19 @@ const renderApp = () => {
                     ` : `
                         <div class="countdown-grid">
                             <div class="countdown-item">
-                                <span class="countdown-value days-value-color">${state.countdown.days}</span>
+                                <span class="countdown-value days-value-color" id="countdown-days">${state.countdown.days}</span>
                                 <span class="countdown-label">Days</span>
                             </div>
                             <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.hours}</span>
+                                <span class="countdown-value" id="countdown-hours">${state.countdown.hours}</span>
                                 <span class="countdown-label">Hours</span>
                             </div>
                             <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.minutes}</span>
+                                <span class="countdown-value" id="countdown-minutes">${state.countdown.minutes}</span>
                                 <span class="countdown-label">Minutes</span>
                             </div>
                             <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.seconds}</span>
+                                <span class="countdown-value" id="countdown-seconds">${state.countdown.seconds}</span>
                                 <span class="countdown-label">Seconds</span>
                             </div>
                         </div>
@@ -469,7 +510,7 @@ const renderApp = () => {
             renderHistoryModal(
                 "Overall Combined",
                 combinedHistory,
-                () => { state.showOverallHistory = false; renderApp(); },
+                () => { state.showOverallHistory = false; renderApp(); }, // Ensure renderApp is called here
                 handleEditHistoryEntry,
                 handleDeleteHistoryEntry,
                 true, // showTypeColumn
@@ -502,7 +543,7 @@ const renderApp = () => {
                                 type="date"
                                 value="${state.freelancingDateInput}"
                                 aria-label="Select date"
-                                title="Format: DD/MM/YYYY"
+                                title="Format: YYYY-MM-DD"
                                 max="${new Date().toISOString().substring(0, 10)}"
                             />
                         </div>
@@ -513,15 +554,19 @@ const renderApp = () => {
         `;
 
         // Add event listeners for freelancing inputs and button
-        setTimeout(() => { // Ensure elements are in DOM
+        // Using setTimeout to ensure elements are in DOM after innerHTML assignment
+        setTimeout(() => { 
             const incomeInput = document.getElementById('freelancing-income-input');
             const dateInput = document.getElementById('freelancing-date-input');
             const addButton = document.getElementById('add-freelancing-income-btn');
 
             if (incomeInput) incomeInput.addEventListener('input', (e) => { state.freelancingInput = e.target.value; });
             if (dateInput) dateInput.addEventListener('change', (e) => { state.freelancingDateInput = e.target.value; });
-            if (addButton) addButton.addEventListener('click', () => handleAddIncome('freelancing'));
-        });
+            if (addButton) addButton.addEventListener('click', () => {
+                handleAddIncome('freelancing');
+                renderApp(); // Re-render after adding income
+            });
+        }, 0);
 
         // Add FAB button for history
         const historyFab = document.createElement('button');
@@ -542,7 +587,12 @@ const renderApp = () => {
             renderHistoryModal(
                 "Freelancing",
                 state.freelancingHistory,
-                () => { state.showFreelancingHistory = false; state.editingId = null; state.activeRowForActions = null; renderApp(); },
+                () => { 
+                    state.showFreelancingHistory = false; 
+                    state.editingId = null; 
+                    state.activeRowForActions = null; 
+                    renderApp(); 
+                },
                 handleEditHistoryEntry,
                 handleDeleteHistoryEntry,
                 false, // showTypeColumn
@@ -575,7 +625,7 @@ const renderApp = () => {
                                 type="date"
                                 value="${state.sellingDateInput}"
                                 aria-label="Select date"
-                                title="Format: DD/MM/YYYY"
+                                title="Format: YYYY-MM-DD"
                                 max="${new Date().toISOString().substring(0, 10)}"
                             />
                         </div>
@@ -592,8 +642,11 @@ const renderApp = () => {
 
             if (incomeInput) incomeInput.addEventListener('input', (e) => { state.sellingInput = e.target.value; });
             if (dateInput) dateInput.addEventListener('change', (e) => { state.sellingDateInput = e.target.value; });
-            if (addButton) addButton.addEventListener('click', () => handleAddIncome('selling'));
-        });
+            if (addButton) addButton.addEventListener('click', () => {
+                handleAddIncome('selling');
+                renderApp(); // Re-render after adding income
+            });
+        }, 0);
 
         // Add FAB button for history
         const historyFab = document.createElement('button');
@@ -614,7 +667,12 @@ const renderApp = () => {
             renderHistoryModal(
                 "Selling",
                 state.sellingHistory,
-                () => { state.showSellingHistory = false; state.editingId = null; state.activeRowForActions = null; renderApp(); },
+                () => { 
+                    state.showSellingHistory = false; 
+                    state.editingId = null; 
+                    state.activeRowForActions = null; 
+                    renderApp(); 
+                },
                 handleEditHistoryEntry,
                 handleDeleteHistoryEntry,
                 false, // showTypeColumn
@@ -667,8 +725,10 @@ const renderApp = () => {
     // Attach tab bar event listeners
     appContainer.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', (e) => {
+            if (state.activeTab === e.currentTarget.dataset.tab) return; // Don't re-render if clicking active tab
+
             state.activeTab = e.currentTarget.dataset.tab;
-            // Reset modal states when changing tabs
+            // Reset modal states and editing state when changing tabs
             state.showFreelancingHistory = false;
             state.showSellingHistory = false;
             state.showHomeMenu = false;
@@ -677,6 +737,11 @@ const renderApp = () => {
             state.activeRowForActions = null;
             state.showDeleteConfirmation = false;
             state.entryToDelete = null;
+            // Clear any active long press timer
+            if (state.longPressTimer) {
+                clearTimeout(state.longPressTimer);
+                state.longPressTimer = null;
+            }
             renderApp();
         });
     });
@@ -709,7 +774,7 @@ const handleAddIncome = (type) => {
         state.sellingDateInput = new Date().toISOString().substring(0, 10);
     }
     saveState();
-    renderApp();
+    // renderApp() is called by the button click listener after this function
 };
 
 const handleEditHistoryEntry = (id, newAmount, type) => {
@@ -724,7 +789,7 @@ const handleEditHistoryEntry = (id, newAmount, type) => {
         state.sellingHistory = updateHistory(state.sellingHistory);
     }
     saveState();
-    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
+    // renderApp() is explicitly called after confirmation in renderHistoryModal
 };
 
 const handleDeleteHistoryEntry = (id, type) => {
@@ -734,7 +799,7 @@ const handleDeleteHistoryEntry = (id, type) => {
         state.sellingHistory = state.sellingHistory.filter(entry => entry.id !== id);
     }
     saveState();
-    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
+    // renderApp() is explicitly called after confirmation in renderHistoryModal
 };
 
 
@@ -745,31 +810,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = new Date();
     state.currentDate = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+    // Clear any existing interval before setting a new one
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
     countdownInterval = setInterval(() => {
         const newCountdown = calculateTimeRemaining(targetDate);
-        // Only trigger a full re-render if the "passed" status changes or if the countdown UI needs to be updated.
-        // For individual digit updates, we can directly update the DOM if elements exist.
         
-        // This check prevents full re-renders every second if only digits change.
-        // It focuses on updating only the relevant DOM elements.
+        // Only update DOM directly if on home tab and goal not passed
         if (state.activeTab === 'home' && !newCountdown.passed) {
-            const daysEl = document.querySelector('.countdown-item .days-value-color');
-            const hoursEl = document.querySelector('.countdown-item .countdown-value:not(.days-value-color)');
-            const minutesEl = document.querySelector('.countdown-item:nth-child(3) .countdown-value');
-            const secondsEl = document.querySelector('.countdown-item:nth-child(4) .countdown-value');
+            const daysEl = document.getElementById('countdown-days');
+            const hoursEl = document.getElementById('countdown-hours');
+            const minutesEl = document.getElementById('countdown-minutes');
+            const secondsEl = document.getElementById('countdown-seconds');
 
-            if (daysEl && daysEl.textContent !== newCountdown.days) daysEl.textContent = newCountdown.days;
-            if (hoursEl && hoursEl.textContent !== newCountdown.hours) hoursEl.textContent = newCountdown.hours;
-            if (minutesEl && minutesEl.textContent !== newCountdown.minutes) minutesEl.textContent = newCountdown.minutes;
-            if (secondsEl && secondsEl.textContent !== newCountdown.seconds) secondsEl.textContent = newCountdown.seconds;
+            if (daysEl && daysEl.textContent !== newCountdown.days) {
+                daysEl.textContent = newCountdown.days;
+                daysEl.classList.add('digit-pop-animation'); // Trigger animation
+                daysEl.addEventListener('animationend', () => daysEl.classList.remove('digit-pop-animation'), {once: true});
+            }
+            if (hoursEl && hoursEl.textContent !== newCountdown.hours) {
+                hoursEl.textContent = newCountdown.hours;
+                hoursEl.classList.add('digit-pop-animation');
+                hoursEl.addEventListener('animationend', () => hoursEl.classList.remove('digit-pop-animation'), {once: true});
+            }
+            if (minutesEl && minutesEl.textContent !== newCountdown.minutes) {
+                minutesEl.textContent = newCountdown.minutes;
+                minutesEl.classList.add('digit-pop-animation');
+                minutesEl.addEventListener('animationend', () => minutesEl.classList.remove('digit-pop-animation'), {once: true});
+            }
+            if (secondsEl && secondsEl.textContent !== newCountdown.seconds) {
+                secondsEl.textContent = newCountdown.seconds;
+                secondsEl.classList.add('digit-pop-animation');
+                secondsEl.addEventListener('animationend', () => secondsEl.classList.remove('digit-pop-animation'), {once: true});
+            }
         }
 
+        // Trigger a full re-render only if the "passed" status changes
         if (newCountdown.passed !== state.countdown.passed) {
             state.countdown = newCountdown;
             clearInterval(countdownInterval);
+            countdownInterval = null; // Clear the interval reference
             renderApp(); // Full re-render to show "Goal date passed!" message
         } else {
-            state.countdown = newCountdown; // Update state even if not re-rendering fully
+            state.countdown = newCountdown; // Always update state for consistency
         }
     }, 1000);
 

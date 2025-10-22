@@ -478,7 +478,7 @@
         }
 
         /* Keyframe animation for countdown digits */
-        @keyframes digit-pop {
+        @keyframes digit-pop-animation { /* Renamed to avoid conflict with existing 'digit-pop' if any, and make it more specific */
             0% {
                 transform: scale(0.8);
                 opacity: 0.7;
@@ -492,6 +492,9 @@
                 opacity: 1;
             }
         }
+        .countdown-value.digit-pop-animation {
+            animation: digit-pop-animation 0.3s ease-out; 
+        }
 
         .countdown-value {
             font-family: 'Roboto Mono', monospace;
@@ -500,8 +503,6 @@
             color: var(--accent-orange);
             line-height: 1; /* Adjust line height to prevent extra space */
             margin-bottom: 5px;
-            /* Animation for digit change */
-            animation: digit-pop 0.3s ease-out; 
         }
 
         /* Distinct color for Days countdown value */
@@ -675,28 +676,22 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        .history-action-buttons-overlay {
-            position: absolute; /* Position over the row */
-            top: 50%;
-            right: 10px; /* Adjust as needed */
-            transform: translateY(-50%);
+        /* Modified: Direct button visibility for actions in table cell */
+        .history-action-buttons {
             display: flex;
             gap: 8px;
+            justify-content: flex-end; /* Align to the right */
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.2s ease-in-out;
-            background-color: rgba(22, 27, 34, 0.9); /* Semi-transparent background for readability */
-            padding: 5px 10px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
-
-        tr.active-actions .history-action-buttons-overlay {
+        
+        .history-action-buttons.visible {
             opacity: 1;
             pointer-events: auto;
         }
 
-        .history-action-buttons-overlay button {
+        .history-action-buttons button {
             padding: 6px 10px;
             border-radius: var(--border-radius);
             font-size: 0.85em;
@@ -705,39 +700,46 @@
             transition: background-color 0.2s ease;
             border: none;
             flex-shrink: 0;
+            color: var(--bg-dark); /* Default button text color */
         }
 
-        .history-action-buttons-overlay .edit-btn {
+        .history-action-buttons .edit-btn {
             background-color: var(--edit-button-bg); /* Use accent orange for edit */
             color: var(--bg-dark);
         }
-        .history-action-buttons-overlay .edit-btn:hover {
+        .history-action-buttons .edit-btn:hover {
             background-color: #ff9800; /* Lighter orange on hover */
         }
 
-        .history-action-buttons-overlay .delete-btn {
+        .history-action-buttons .delete-btn {
             background-color: var(--delete-button-bg); /* Red for delete */
             color: var(--text-light);
         }
-        .history-action-buttons-overlay .delete-btn:hover {
+        .history-action-buttons .delete-btn:hover {
             background-color: var(--delete-button-hover-bg);
         }
 
-        .history-action-buttons-overlay .save-btn {
+        .history-action-buttons .save-btn {
             background-color: var(--accent-green);
             color: var(--bg-dark);
         }
-        .history-action-buttons-overlay .save-btn:hover {
+        .history-action-buttons .save-btn:hover {
             background-color: #4ac25d;
         }
 
-        .history-action-buttons-overlay .cancel-btn {
+        .history-action-buttons .cancel-btn {
             background-color: var(--button-bg-secondary);
             color: var(--text-light);
         }
-        .history-action-buttons-overlay .cancel-btn:hover {
+        .history-action-buttons .cancel-edit-btn:hover { /* Use specific class for cancel edit */
             background-color: #5a626e;
         }
+        /* Ensure cancel-edit-btn gets the same styling as cancel-btn */
+        .history-action-buttons .cancel-edit-btn {
+            background-color: var(--button-bg-secondary);
+            color: var(--text-light);
+        }
+
 
         .history-edit-input {
             width: 80px; /* Small width for the input */
@@ -815,7 +817,7 @@
             .history-edit-input {
                 width: 60px; /* Even smaller for mobile tables */
             }
-            .history-action-buttons-overlay button {
+            .history-action-buttons button {
                 padding: 4px 6px;
                 font-size: 0.75em;
             }
@@ -876,14 +878,6 @@
             }
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
-  }
-}
-</script>
 </head>
 <body>
     <div id="root"></div>
