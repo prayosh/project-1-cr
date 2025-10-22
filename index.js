@@ -19,6 +19,7 @@ const state = {
     longPressTimer: null, // For HistoryModal long-press
     showDeleteConfirmation: false, // For HistoryModal
     entryToDelete: null, // For HistoryModal
+    longPressHandled: false, // To prevent click after long press
 };
 
 const targetDate = new Date('2026-12-31T23:59:59');
@@ -143,7 +144,6 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <th>Date</th>
                             ${showTypeColumn ? '<th>Type</th>' : ''}
                             <th>Amount</th>
-                            <th style="width: 120px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -151,13 +151,14 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <tr 
                                 data-id="${entry.id}" 
                                 data-type="${entry.type}"
+                                class="${state.activeRowForActions === entry.id ? 'active-actions' : ''}"
                                 tabindex="0"
                                 role="row"
                             >
                                 <td>${formatEntryDate(entry.date)}</td>
                                 ${showTypeColumn ? `<td>${entry.type}</td>` : ''}
-                                ${state.editingId === entry.id ? `
-                                    <td>
+                                <td style="position: relative;">
+                                    ${state.editingId === entry.id ? `
                                         <input
                                             type="number"
                                             class="history-edit-input"
@@ -166,18 +167,18 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                                             aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}"
                                             data-id="${entry.id}"
                                         />
-                                    </td>
-                                    <td class="history-action-buttons visible">
-                                        <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
-                                        <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
-                                    </td>
-                                ` : `
-                                    <td>${formatCurrency(entry.amount)}</td>
-                                    <td class="history-action-buttons ${state.activeRowForActions === entry.id ? 'visible' : ''}">
-                                        <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
-                                        <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
-                                    </td>
-                                `}
+                                        <div class="history-action-buttons-overlay visible">
+                                            <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
+                                            <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
+                                        </div>
+                                    ` : `
+                                        ${formatCurrency(entry.amount)}
+                                        <div class="history-action-buttons-overlay">
+                                            <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
+                                            <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
+                                        </div>
+                                    `}
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -196,7 +197,13 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
 
     document.body.appendChild(modalDiv);
 
-    modalDiv.querySelector('.modal-close-button').addEventListener('click', onClose);
+    modalDiv.querySelector('.modal-close-button').addEventListener('click', () => {
+        state.activeRowForActions = null; // Clear active row when closing modal
+        state.editingId = null; // Clear editing state
+        state.showDeleteConfirmation = false; // Clear confirmation state
+        state.entryToDelete = null; // Clear entry to delete
+        onClose();
+    });
 
     // Add event listeners for table rows and buttons
     modalDiv.querySelectorAll('tbody tr').forEach(row => {
@@ -205,8 +212,14 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
         const entry = history.find(e => e.id === entryId);
 
         const handleLongPressStart = (event) => {
-            if (event.cancelable) event.preventDefault(); // Prevent default browser behavior on long press
+            state.longPressHandled = false;
+            // Prevent text selection or other default browser actions on long press
+            if (event.type === 'touchstart') {
+                event.preventDefault(); 
+            }
+
             state.longPressTimer = setTimeout(() => {
+                state.longPressHandled = true;
                 state.activeRowForActions = entryId;
                 renderApp(); // Re-render to show action buttons
             }, LONG_PRESS_DELAY);
@@ -217,44 +230,68 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                 clearTimeout(state.longPressTimer);
                 state.longPressTimer = null;
             }
+            // If it was a short press, hide actions immediately
+            if (!state.longPressHandled && state.activeRowForActions === entryId && state.editingId !== entryId) {
+                state.activeRowForActions = null;
+                renderApp();
+            }
+            state.longPressHandled = false; // Reset for next interaction
         };
 
+        // Add `pointerleave` for mouse, `touchend`, `touchcancel` for touch
         row.addEventListener('mousedown', handleLongPressStart);
         row.addEventListener('mouseup', handleLongPressEnd);
-        row.addEventListener('mouseleave', handleLongPressEnd);
-        row.addEventListener('touchstart', handleLongPressStart, { passive: false });
+        row.addEventListener('mouseleave', handleLongPressEnd); // Use mouseleave for desktop hover exit
+        row.addEventListener('touchstart', handleLongPressStart, { passive: false }); // passive: false to allow preventDefault
         row.addEventListener('touchend', handleLongPressEnd);
         row.addEventListener('touchcancel', handleLongPressEnd);
+        
+        // Hide actions if clicking another row or outside
+        document.addEventListener('mousedown', (e) => {
+            if (!row.contains(e.target) && state.activeRowForActions === entryId && state.editingId !== entryId) {
+                state.activeRowForActions = null;
+                renderApp();
+            }
+        });
 
         if (state.editingId === entryId) {
             const input = row.querySelector('.history-edit-input');
-            input.addEventListener('change', (e) => state.editingAmount = e.target.value);
-            row.querySelector('.save-btn').addEventListener('click', () => {
+            if (input) input.addEventListener('input', (e) => { state.editingAmount = e.target.value; });
+            
+            const saveBtn = row.querySelector('.save-btn');
+            if (saveBtn) saveBtn.addEventListener('click', () => {
                 const newAmount = parseFloat(state.editingAmount);
                 if (isNaN(newAmount) || newAmount <= 0) {
                     alert('Please enter a valid positive number.');
                     return;
                 }
-                onEditEntry(entryId, newAmount, (tabType || entryType));
+                // Determine the correct type for the entry, preferring tabType if available, otherwise entryType
+                const effectiveType = tabType || entryType;
+                onEditEntry(entryId, newAmount, effectiveType);
                 state.editingId = null;
                 state.editingAmount = '';
                 state.activeRowForActions = null;
                 renderApp(); // Re-render to update history and close edit mode
             });
-            row.querySelector('.cancel-edit-btn').addEventListener('click', () => {
+            const cancelEditBtn = row.querySelector('.cancel-edit-btn');
+            if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => {
                 state.editingId = null;
                 state.editingAmount = '';
                 state.activeRowForActions = null;
                 renderApp(); // Re-render to close edit mode
             });
         } else {
-            row.querySelector('.edit-btn')?.addEventListener('click', () => {
+            const editBtn = row.querySelector('.edit-btn');
+            if (editBtn) editBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent row's click from interfering
                 state.editingId = entryId;
                 state.editingAmount = entry.amount.toString();
                 state.activeRowForActions = null; // Hide actions after clicking edit
                 renderApp(); // Re-render to open edit mode
             });
-            row.querySelector('.delete-btn')?.addEventListener('click', () => {
+            const deleteBtn = row.querySelector('.delete-btn');
+            if (deleteBtn) deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent row's click from interfering
                 state.entryToDelete = entry;
                 state.showDeleteConfirmation = true;
                 state.activeRowForActions = null; // Hide actions after clicking delete
@@ -268,7 +305,8 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
             "Confirm Deletion",
             `Are you sure you want to delete this entry of ${formatCurrency(state.entryToDelete.amount)} on ${formatEntryDate(state.entryToDelete.date)}?`,
             () => { // onConfirm
-                onDeleteEntry(state.entryToDelete.id, (tabType || state.entryToDelete.type));
+                const effectiveType = tabType || state.entryToDelete.type; // Use tabType if available, else entry type
+                onDeleteEntry(state.entryToDelete.id, effectiveType);
                 state.showDeleteConfirmation = false;
                 state.entryToDelete = null;
                 renderApp(); // Re-render to update history and close modal
@@ -309,11 +347,14 @@ const renderHomeMenuOverlay = () => {
     });
     document.body.appendChild(backdropDiv);
 
+    const homeMenuFab = document.getElementById('home-menu-fab');
+
     // Event listeners for closing menu on click outside or escape key
     const handleClickOutside = (event) => {
-        if (!menuDiv.contains(event.target) && !document.getElementById('home-menu-fab').contains(event.target)) {
+        if (!menuDiv.contains(event.target) && (homeMenuFab && !homeMenuFab.contains(event.target))) {
             state.showHomeMenu = false;
             renderApp();
+            // Clean up listeners
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
@@ -324,6 +365,7 @@ const renderHomeMenuOverlay = () => {
         if (event.key === 'Escape') {
             state.showHomeMenu = false;
             renderApp();
+            // Clean up listeners
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
@@ -331,6 +373,7 @@ const renderHomeMenuOverlay = () => {
     };
 
     if (state.showHomeMenu) {
+        // Add listeners only when menu is open
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('touchstart', handleClickOutside);
         document.addEventListener('keydown', handleEscape);
@@ -440,7 +483,7 @@ const renderApp = () => {
                 ${renderProgressBar(freelancingIncome, 50000000, 'Freelancing')}
                 <div class="input-card">
                     <div class="input-row">
-                        <label htmlFor="freelancing-income-input" class="sr-only">Enter income amount for freelancing</label>
+                        <label for="freelancing-income-input" class="sr-only">Enter income amount for freelancing</label>
                         <div class="input-wrapper">
                             <span class="currency-icon" aria-hidden="true">₹</span>
                             <input
@@ -452,7 +495,7 @@ const renderApp = () => {
                                 aria-describedby="freelancing-income-help"
                             />
                         </div>
-                        <label htmlFor="freelancing-date-input" class="sr-only">Select date for freelancing income</label>
+                        <label for="freelancing-date-input" class="sr-only">Select date for freelancing income</label>
                         <div class="input-wrapper date-input">
                             <input
                                 id="freelancing-date-input"
@@ -513,7 +556,7 @@ const renderApp = () => {
                 ${renderProgressBar(sellingIncome, 50000000, 'Selling')}
                 <div class="input-card">
                     <div class="input-row">
-                        <label htmlFor="selling-income-input" class="sr-only">Enter income amount for selling</label>
+                        <label for="selling-income-input" class="sr-only">Enter income amount for selling</label>
                         <div class="input-wrapper">
                             <span class="currency-icon" aria-hidden="true">₹</span>
                             <input
@@ -525,7 +568,7 @@ const renderApp = () => {
                                 aria-describedby="selling-income-help"
                             />
                         </div>
-                        <label htmlFor="selling-date-input" class="sr-only">Select date for selling income</label>
+                        <label for="selling-date-input" class="sr-only">Select date for selling income</label>
                         <div class="input-wrapper date-input">
                             <input
                                 id="selling-date-input"
@@ -632,6 +675,8 @@ const renderApp = () => {
             state.showOverallHistory = false;
             state.editingId = null;
             state.activeRowForActions = null;
+            state.showDeleteConfirmation = false;
+            state.entryToDelete = null;
             renderApp();
         });
     });
@@ -679,7 +724,7 @@ const handleEditHistoryEntry = (id, newAmount, type) => {
         state.sellingHistory = updateHistory(state.sellingHistory);
     }
     saveState();
-    renderApp();
+    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
 };
 
 const handleDeleteHistoryEntry = (id, type) => {
@@ -689,7 +734,7 @@ const handleDeleteHistoryEntry = (id, type) => {
         state.sellingHistory = state.sellingHistory.filter(entry => entry.id !== id);
     }
     saveState();
-    renderApp();
+    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
 };
 
 
@@ -701,24 +746,30 @@ document.addEventListener('DOMContentLoaded', () => {
     state.currentDate = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     countdownInterval = setInterval(() => {
-        state.countdown = calculateTimeRemaining(targetDate);
-        // Only re-render if the countdown actually changes to avoid excessive DOM updates
-        if (document.querySelector('.countdown-grid')) { // Check if countdown is currently visible
+        const newCountdown = calculateTimeRemaining(targetDate);
+        // Only trigger a full re-render if the "passed" status changes or if the countdown UI needs to be updated.
+        // For individual digit updates, we can directly update the DOM if elements exist.
+        
+        // This check prevents full re-renders every second if only digits change.
+        // It focuses on updating only the relevant DOM elements.
+        if (state.activeTab === 'home' && !newCountdown.passed) {
             const daysEl = document.querySelector('.countdown-item .days-value-color');
-            const hoursEl = document.querySelector('.countdown-item .countdown-value:nth-of-type(2)');
-            const minutesEl = document.querySelector('.countdown-item .countdown-value:nth-of-type(3)');
-            const secondsEl = document.querySelector('.countdown-item .countdown-value:nth-of-type(4)');
+            const hoursEl = document.querySelector('.countdown-item .countdown-value:not(.days-value-color)');
+            const minutesEl = document.querySelector('.countdown-item:nth-child(3) .countdown-value');
+            const secondsEl = document.querySelector('.countdown-item:nth-child(4) .countdown-value');
 
-            if (daysEl && daysEl.textContent !== state.countdown.days) daysEl.textContent = state.countdown.days;
-            if (hoursEl && hoursEl.textContent !== state.countdown.hours) hoursEl.textContent = state.countdown.hours;
-            if (minutesEl && minutesEl.textContent !== state.countdown.minutes) minutesEl.textContent = state.countdown.minutes;
-            if (secondsEl && secondsEl.textContent !== state.countdown.seconds) secondsEl.textContent = state.countdown.seconds;
+            if (daysEl && daysEl.textContent !== newCountdown.days) daysEl.textContent = newCountdown.days;
+            if (hoursEl && hoursEl.textContent !== newCountdown.hours) hoursEl.textContent = newCountdown.hours;
+            if (minutesEl && minutesEl.textContent !== newCountdown.minutes) minutesEl.textContent = newCountdown.minutes;
+            if (secondsEl && secondsEl.textContent !== newCountdown.seconds) secondsEl.textContent = newCountdown.seconds;
+        }
 
-            if (state.countdown.passed) {
-                // If goal passed, clear interval and re-render the app to show "Goal date passed!"
-                clearInterval(countdownInterval);
-                renderApp();
-            }
+        if (newCountdown.passed !== state.countdown.passed) {
+            state.countdown = newCountdown;
+            clearInterval(countdownInterval);
+            renderApp(); // Full re-render to show "Goal date passed!" message
+        } else {
+            state.countdown = newCountdown; // Update state even if not re-rendering fully
         }
     }, 1000);
 

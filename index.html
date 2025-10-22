@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project 10 Cr</title>
-    <!-- Google Fonts for app title -->
+    <!-- Google Fonts for app title and general text -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Sacramento&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Marhey:wght@700&family=Playfair+Display:wght@700&family=Roboto+Mono&display=swap" rel="stylesheet">
     <!-- Inlined CSS -->
     <style>
         /* Basic Reset */
@@ -89,7 +89,7 @@
         }
 
         .app-title {
-            font-family: 'Sacramento', cursive; /* Royal-looking font */
+            font-family: 'Marhey', cursive; /* New cursive font */
             font-size: clamp(1.8rem, 5vw, 2.8rem); /* Responsive font size */
             margin-bottom: 8px;
             color: var(--accent-blue);
@@ -118,7 +118,6 @@
             flex-direction: column;
             gap: 24px;
             height: 100%;
-            /* Removed position: relative; here as FABs will be fixed to viewport */
         }
 
         .progress-section {
@@ -278,8 +277,6 @@
             width: 100%; /* Make date input fill its wrapper */
             -webkit-appearance: none; /* Remove default styling */
             appearance: none;
-            /* For custom date icon, if needed */
-            /* background: var(--input-bg) url('data:image/svg+xml;utf8,<svg ...>') no-repeat right 10px center; */
         }
         /* Style for date picker icon */
         .input-card input[type="date"]::-webkit-calendar-picker-indicator {
@@ -359,11 +356,6 @@
         .fab-button:focus {
             outline: 2px solid var(--accent-blue);
             outline-offset: 3px;
-        }
-
-        /* Specific FAB positioning adjustments */
-        .history-fab {
-            /* Uses default FAB styles, no specific overrides needed here for position */
         }
 
         /* --- Home Menu Sidebar Overlay --- */
@@ -683,22 +675,28 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        .history-action-buttons {
+        .history-action-buttons-overlay {
+            position: absolute; /* Position over the row */
+            top: 50%;
+            right: 10px; /* Adjust as needed */
+            transform: translateY(-50%);
             display: flex;
-            gap: 8px; /* Space between buttons */
-            justify-content: flex-end; /* Align to the right */
-            opacity: 0; /* Hidden by default */
-            pointer-events: none; /* Block interactions when hidden */
+            gap: 8px;
+            opacity: 0;
+            pointer-events: none;
             transition: opacity 0.2s ease-in-out;
-            min-width: 120px; /* Ensure enough space for buttons */
+            background-color: rgba(22, 27, 34, 0.9); /* Semi-transparent background for readability */
+            padding: 5px 10px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
-        
-        .history-action-buttons.visible {
+
+        tr.active-actions .history-action-buttons-overlay {
             opacity: 1;
             pointer-events: auto;
         }
 
-        .history-action-buttons button {
+        .history-action-buttons-overlay button {
             padding: 6px 10px;
             border-radius: var(--border-radius);
             font-size: 0.85em;
@@ -706,37 +704,38 @@
             cursor: pointer;
             transition: background-color 0.2s ease;
             border: none;
+            flex-shrink: 0;
         }
 
-        .history-action-buttons .edit-btn {
+        .history-action-buttons-overlay .edit-btn {
             background-color: var(--edit-button-bg); /* Use accent orange for edit */
             color: var(--bg-dark);
         }
-        .history-action-buttons .edit-btn:hover {
+        .history-action-buttons-overlay .edit-btn:hover {
             background-color: #ff9800; /* Lighter orange on hover */
         }
 
-        .history-action-buttons .delete-btn {
+        .history-action-buttons-overlay .delete-btn {
             background-color: var(--delete-button-bg); /* Red for delete */
             color: var(--text-light);
         }
-        .history-action-buttons .delete-btn:hover {
+        .history-action-buttons-overlay .delete-btn:hover {
             background-color: var(--delete-button-hover-bg);
         }
 
-        .history-action-buttons .save-btn {
+        .history-action-buttons-overlay .save-btn {
             background-color: var(--accent-green);
             color: var(--bg-dark);
         }
-        .history-action-buttons .save-btn:hover {
+        .history-action-buttons-overlay .save-btn:hover {
             background-color: #4ac25d;
         }
 
-        .history-action-buttons .cancel-btn {
+        .history-action-buttons-overlay .cancel-btn {
             background-color: var(--button-bg-secondary);
             color: var(--text-light);
         }
-        .history-action-buttons .cancel-btn:hover {
+        .history-action-buttons-overlay .cancel-btn:hover {
             background-color: #5a626e;
         }
 
@@ -816,7 +815,7 @@
             .history-edit-input {
                 width: 60px; /* Even smaller for mobile tables */
             }
-            .history-action-buttons button {
+            .history-action-buttons-overlay button {
                 padding: 4px 6px;
                 font-size: 0.75em;
             }
@@ -889,6 +888,6 @@
 <body>
     <div id="root"></div>
 
-    <script src="index.js"></script>
+    <script src="index.js" type="module"></script>
 </body>
 </html>
