@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project 10 Cr</title>
+    <!-- Google Fonts for app title -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <!-- Inlined CSS from index.css -->
     <style>
         /* Basic Reset */
@@ -34,6 +38,9 @@
             --fab-bg: #58a6ff; /* FAB background, e.g., accent blue */
             --fab-icon-color: var(--bg-dark); /* FAB icon color, dark for contrast */
             --edit-button-bg: #f0883e; /* Orange for edit actions */
+            --delete-button-bg: #dc3545; /* Red for delete actions */
+            --delete-button-hover-bg: #c82333; /* Darker red on hover */
+            --menu-sidebar-width: 250px; /* Width of the sliding menu */
         }
 
         body {
@@ -82,6 +89,7 @@
         }
 
         .app-title {
+            font-family: 'Playfair Display', serif; /* Royal-looking font */
             font-size: clamp(1.8rem, 5vw, 2.8rem); /* Responsive font size */
             margin-bottom: 8px;
             color: var(--accent-blue);
@@ -90,7 +98,7 @@
         }
 
         .current-date {
-            font-size: clamp(0.85rem, 2.5vw, 1rem);
+            font-size: clamp(1rem, 3.5vw, 1.2rem); /* Increased font size */
             color: var(--text-secondary);
         }
 
@@ -151,6 +159,7 @@
             color: var(--text-secondary);
             text-align: center;
             display: flex;
+            flex-direction: column; /* Changed to column for two lines */
             justify-content: center;
             flex-wrap: wrap;
             gap: 4px;
@@ -160,6 +169,23 @@
             color: var(--accent-blue);
             font-weight: 500;
         }
+        
+        /* New styles for target amount on second line */
+        .progress-text .current-amount {
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        .progress-text .target-amount-line {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+        }
+        .progress-text .target-amount {
+            color: var(--accent-green); /* Different color for target */
+            font-weight: 500;
+        }
+
 
         .input-card {
             background-color: var(--bg-dark);
@@ -184,6 +210,13 @@
             border-width: 0;
         }
 
+        .input-row {
+            display: flex;
+            gap: 10px; /* Space between input fields */
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+            align-items: center;
+        }
+
         .input-wrapper {
             position: relative;
             display: flex;
@@ -192,6 +225,8 @@
             border-radius: var(--border-radius);
             background-color: var(--input-bg);
             transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; /* Animation on focus */
+            flex: 1; /* Allow input wrapper to grow */
+            min-width: 150px; /* Minimum width to prevent shrinking too much */
         }
 
         .input-wrapper:focus-within {
@@ -214,7 +249,8 @@
             color: var(--input-icon-focus-color);
         }
 
-        .input-card input[type="number"] {
+        .input-card input[type="number"],
+        .input-card input[type="date"] {
             flex-grow: 1;
             padding: 12px 15px 12px 40px; /* Adjust left padding for icon */
             border-radius: var(--border-radius);
@@ -224,10 +260,39 @@
             font-size: 1em;
             outline: none; /* No default outline */
         }
+        
+        .input-card input[type="date"] {
+            padding-left: 15px; /* Date input doesn't need currency icon padding */
+        }
 
-        .input-card input[type="number"]::placeholder {
+        .input-card input[type="number"]::placeholder,
+        .input-card input[type="date"]::placeholder {
             color: var(--text-secondary);
         }
+        
+        /* Specific styles for date input */
+        .input-wrapper.date-input {
+            flex: 0 1 180px; /* Fixed width for date input, but allow it to shrink */
+        }
+        .input-card input[type="date"] {
+            width: 100%; /* Make date input fill its wrapper */
+            -webkit-appearance: none; /* Remove default styling */
+            appearance: none;
+            /* For custom date icon, if needed */
+            /* background: var(--input-bg) url('data:image/svg+xml;utf8,<svg ...>') no-repeat right 10px center; */
+        }
+        /* Style for date picker icon */
+        .input-card input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(70%); /* Make icon visible on dark background */
+            cursor: pointer;
+            padding-right: 5px;
+        }
+        .input-card input[type="date"]::-moz-calendar-picker-indicator {
+             filter: invert(70%); /* Make icon visible on dark background */
+            cursor: pointer;
+            padding-right: 5px;
+        }
+
 
         .input-card button {
             padding: 12px 20px;
@@ -301,32 +366,42 @@
             /* Uses default FAB styles, no specific overrides needed here for position */
         }
 
-        .menu-fab {
-            /* Uses default FAB styles, no specific overrides needed here for position */
-            /* id="home-menu-fab" for aria-labelledby */
-        }
-
-        /* --- Home Menu Overlay --- */
+        /* --- Home Menu Sidebar Overlay --- */
         .home-menu-overlay {
-            position: fixed; /* Changed from absolute to fixed */
-            bottom: 140px; /* Position above the menu FAB */
-            right: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: var(--menu-sidebar-width);
             background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 15px var(--shadow-strong);
-            padding: 10px 0;
-            z-index: 20; /* Above FABs, below modals */
+            border-right: 1px solid var(--border-color);
+            box-shadow: 2px 0 10px var(--shadow-strong);
+            transform: translateX(-100%); /* Start off-screen */
+            transition: transform 0.3s ease-out;
+            z-index: 100;
+            padding-top: 20px;
             display: flex;
             flex-direction: column;
-            min-width: 180px;
+        }
+
+        .home-menu-overlay.open {
+            transform: translateX(0); /* Slide in */
+        }
+
+        .menu-header {
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            color: var(--accent-blue);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
         }
 
         .home-menu-overlay button {
             background: none;
             border: none;
             color: var(--text-light);
-            padding: 10px 20px;
+            padding: 15px 20px;
             text-align: left;
             font-size: 1em;
             cursor: pointer;
@@ -345,6 +420,24 @@
             outline-offset: -2px; /* Inset outline */
         }
 
+        /* Overlay for when sidebar is open */
+        .sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Darken background */
+            z-index: 99; /* Below sidebar, above main content */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+        }
+
+        .sidebar-backdrop.open {
+            opacity: 1;
+            visibility: visible;
+        }
 
         .countdown-card {
             background-color: var(--bg-dark);
@@ -424,14 +517,6 @@
             color: var(--accent-green); /* Or any other distinct color */
         }
 
-
-        .countdown-label {
-            font-size: clamp(0.7rem, 2.2vw, 0.9rem);
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 500;
-        }
 
         .countdown-timer { /* Fallback for "Goal date passed!" */
             font-family: 'Roboto Mono', monospace;
@@ -567,6 +652,10 @@
             background-color: #1a202a; /* Slightly different background for even rows */
         }
 
+        .modal-content tr {
+            position: relative; /* For actions overlay */
+            transition: background-color 0.1s ease;
+        }
         .modal-content tr:hover {
             background-color: #2a313c; /* Highlight row on hover */
         }
@@ -598,6 +687,15 @@
             display: flex;
             gap: 8px; /* Space between buttons */
             justify-content: flex-end; /* Align to the right */
+            opacity: 0; /* Hidden by default */
+            pointer-events: none; /* Block interactions when hidden */
+            transition: opacity 0.2s ease-in-out;
+            min-width: 120px; /* Ensure enough space for buttons */
+        }
+        
+        .history-action-buttons.visible {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .history-action-buttons button {
@@ -616,6 +714,14 @@
         }
         .history-action-buttons .edit-btn:hover {
             background-color: #ff9800; /* Lighter orange on hover */
+        }
+
+        .history-action-buttons .delete-btn {
+            background-color: var(--delete-button-bg); /* Red for delete */
+            color: var(--text-light);
+        }
+        .history-action-buttons .delete-btn:hover {
+            background-color: var(--delete-button-hover-bg);
         }
 
         .history-action-buttons .save-btn {
@@ -662,10 +768,19 @@
                 flex-direction: column; /* Stack input and add button on small screens */
                 align-items: stretch;
             }
+            .input-row {
+                flex-direction: column; /* Stack amount and date inputs */
+                align-items: stretch;
+            }
             .input-wrapper {
                 width: 100%; /* Ensure input wrapper takes full width */
+                min-width: unset;
             }
-            .input-card input[type="number"] {
+            .input-wrapper.date-input {
+                flex: 0 1 auto;
+            }
+            .input-card input[type="number"],
+            .input-card input[type="date"] {
                 width: 100%;
             }
             .input-card button {
@@ -685,8 +800,7 @@
             }
 
             .home-menu-overlay {
-                bottom: 140px; /* Position above smaller FAB + margin */
-                right: 15px;
+                width: 80%; /* Wider sidebar on small screens */
             }
 
             .modal-content {
@@ -723,15 +837,19 @@
                 padding-bottom: 150px; /* Added padding to ensure space for FABs and menu */
             }
             .input-card {
-                flex-direction: row;
-                align-items: center; /* Align items vertically in the row */
-                gap: 10px; /* Reduce gap to fit FABs better if placed inside, but they're not anymore */
+                flex-direction: column; /* Stack input row and add button */
+                align-items: stretch;
+                gap: 15px;
+            }
+            .input-row {
+                flex-wrap: nowrap; /* Prevent wrapping on larger screens */
             }
             .input-wrapper {
                 flex-grow: 1; /* Allow input wrapper to grow */
                 width: auto;
             }
-            .input-card input[type="number"] {
+            .input-card input[type="number"],
+            .input-card input[type="date"] {
                 flex-grow: 1;
                 width: auto;
             }
@@ -752,455 +870,30 @@
             }
 
             .home-menu-overlay {
-                bottom: 140px; /* Adjusted to be above FAB + margin */
-                right: 20px;
+                width: var(--menu-sidebar-width); /* Consistent width */
             }
             .modal-content {
                 max-width: 600px; /* Wider modal on larger screens */
             }
         }
     </style>
-    <!-- React and ReactDOM from CDN -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Babel Standalone for in-browser JSX compilation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
-        // Using `React` and `ReactDOM` from the global scope due to CDN imports
-        const { useState, useEffect, useRef, useMemo, useCallback } = React;
-
-        // Helper function to format currency
-        const formatCurrency = (amount) => {
-            return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-        };
-
-        // Helper function to format date for history display (MM/DD/YYYY)
-        const formatEntryDate = (isoString) => {
-            const date = new Date(isoString);
-            return date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            });
-        };
-
-        // Helper function to calculate time remaining
-        const calculateTimeRemaining = (targetDate) => {
-            const now = new Date();
-            const difference = targetDate.getTime() - now.getTime();
-
-            if (difference < 0) {
-                return { days: '00', hours: '00', minutes: '00', seconds: '00', passed: true };
-            }
-
-            const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-            return {
-                days: String(days).padStart(2, '0'),
-                hours: String(hours).padStart(2, '0'),
-                minutes: String(minutes).padStart(2, '0'),
-                seconds: String(seconds).padStart(2, '0'),
-                passed: false
-            };
-        };
-
-        const HistoryModal = ({ title, history, onClose, onEditEntry, showTypeColumn }) => {
-            const [editingId, setEditingId] = useState(null);
-            const [editingAmount, setEditingAmount] = useState('');
-
-            const handleEditClick = (entry) => {
-                setEditingId(entry.id);
-                setEditingAmount(entry.amount.toString());
-            };
-
-            const handleSaveEdit = (entry) => {
-                const newAmount = parseFloat(editingAmount);
-                if (isNaN(newAmount) || newAmount <= 0) {
-                    alert('Please enter a valid positive number.');
-                    return;
-                }
-                onEditEntry(entry.id, newAmount, entry.type); // Pass type back for correct history update
-                setEditingId(null);
-                setEditingAmount('');
-            };
-
-            const handleCancelEdit = () => {
-                setEditingId(null);
-                setEditingAmount('');
-            };
-
-            return (
-                <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-                    <div className="modal-content">
-                        <h2 id="modal-title">{title} History</h2>
-                        {history.length === 0 ? (
-                            <p>No entries yet.</p>
-                        ) : (
-                            <div className="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            {showTypeColumn && <th>Type</th>}
-                                            <th>Amount</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {history.map((entry) => (
-                                            <tr key={entry.id}>
-                                                <td>{formatEntryDate(entry.date)}</td>
-                                                {showTypeColumn && <td>{entry.type}</td>}
-                                                {editingId === entry.id ? (
-                                                    <>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                className="history-edit-input"
-                                                                value={editingAmount}
-                                                                onChange={(e) => setEditingAmount(e.target.value)}
-                                                                min="0"
-                                                                aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}
-                                                            />
-                                                        </td>
-                                                        <td className="history-action-buttons">
-                                                            <button className="save-btn" onClick={() => handleSaveEdit(entry)} aria-label="Save edited amount">Save</button>
-                                                            <button className="cancel-btn" onClick={handleCancelEdit} aria-label="Cancel editing">Cancel</button>
-                                                        </td>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <td>{formatCurrency(entry.amount)}</td>
-                                                        <td className="history-action-buttons">
-                                                            {/* Only show edit if ID exists */}
-                                                            {entry.id && (
-                                                                <button className="edit-btn" onClick={() => handleEditClick(entry)} aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}>Edit</button>
-                                                            )}
-                                                        </td>
-                                                    </>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                        <button className="modal-close-button" onClick={onClose} aria-label="Close history">
-                            &times;
-                        </button>
-                    </div>
-                </div>
-            );
-        };
-
-        const Project10CrApp = () => {
-            const [activeTab, setActiveTab] = useState('home');
-            
-            const [freelancingHistory, setFreelancingHistory] = useState(() => {
-                const stored = localStorage.getItem('freelancingHistory');
-                // Ensure IDs are present for old data for consistency, though they won't be editable unless re-added
-                // Use a combination of Date.now() and Math.random() for reasonable uniqueness
-                return stored ? JSON.parse(stored).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) })) : [];
-            });
-            const [sellingHistory, setSellingHistory] = useState(() => {
-                const stored = localStorage.getItem('sellingHistory');
-                 // Ensure IDs are present for old data
-                return stored ? JSON.parse(stored).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) })) : [];
-            });
-
-            const freelancingIncome = useMemo(() => 
-                freelancingHistory.reduce((sum, entry) => sum + entry.amount, 0), 
-            [freelancingHistory]);
-            
-            const sellingIncome = useMemo(() => 
-                sellingHistory.reduce((sum, entry) => sum + entry.amount, 0), 
-            [sellingHistory]);
-
-            const [freelancingInput, setFreelancingInput] = useState('');
-            const [sellingInput, setSellingInput] = useState('');
-            const [currentDate, setCurrentDate] = useState('');
-            const [countdown, setCountdown] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00', passed: false });
-
-            const [showFreelancingHistory, setShowFreelancingHistory] = useState(false);
-            const [showSellingHistory, setShowSellingHistory] = useState(false);
-            const [showHomeMenu, setShowHomeMenu] = useState(false);
-            const [showOverallHistory, setShowOverallHistory] = useState(false);
-
-            const targetDate = useRef(new Date('2026-12-31T23:59:59'));
-
-            useEffect(() => {
-                const today = new Date();
-                setCurrentDate(today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-
-                const timer = setInterval(() => {
-                    setCountdown(calculateTimeRemaining(targetDate.current));
-                }, 1000);
-
-                return () => clearInterval(timer);
-            }, []);
-
-            useEffect(() => {
-                localStorage.setItem('freelancingHistory', JSON.stringify(freelancingHistory));
-            }, [freelancingHistory]);
-
-            useEffect(() => {
-                localStorage.setItem('sellingHistory', JSON.stringify(sellingHistory));
-            }, [sellingHistory]);
-
-            const handleAddIncome = useCallback((type) => {
-                const inputAmount = type === 'freelancing' ? freelancingInput : sellingInput;
-                const amount = parseFloat(inputAmount);
-
-                if (isNaN(amount) || amount <= 0) {
-                    alert('Please enter a valid positive number for income.');
-                    return;
-                }
-
-                // No confirmation dialog as per user request
-                const newEntry = { id: Date.now().toString(), amount, date: new Date().toISOString(), type }; // Added ID and type
-
-                if (type === 'freelancing') {
-                    setFreelancingHistory(prev => [...prev, newEntry]);
-                    setFreelancingInput('');
-                } else {
-                    setSellingHistory(prev => [...prev, newEntry]);
-                    setSellingInput('');
-                }
-            }, [freelancingInput, sellingInput]);
-
-            const handleEditHistoryEntry = useCallback((id, newAmount, type) => {
-                if (type === 'Freelancing') { // Match the 'type' string used when mapping for overallHistory
-                    setFreelancingHistory(prev =>
-                        prev.map(entry =>
-                            entry.id === id ? { ...entry, amount: newAmount, date: new Date().toISOString() } : entry // Update date on edit
-                        )
-                    );
-                } else if (type === 'Selling') { // Match the 'type' string
-                    setSellingHistory(prev =>
-                        prev.map(entry =>
-                            entry.id === id ? { ...entry, amount: newAmount, date: new Date().toISOString() } : entry // Update date on edit
-                        )
-                    );
-                }
-            }, []);
-
-
-            const renderProgressBar = (current, target, label) => {
-                const percentage = Math.min(100, (current / target) * 100);
-                const formattedCurrent = formatCurrency(current);
-                const formattedTarget = formatCurrency(target);
-
-                return (
-                    <div className="progress-section">
-                        <h3 id={`${label}-progress-label`}>{label} Goal ({formattedTarget})</h3>
-                        <div className="progress-bar-container" role="progressbar"
-                            aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}
-                            aria-labelledby={`${label}-progress-label`}>
-                            <div className="progress-bar-fill" style={{ width: `${percentage}%` }}></div>
-                        </div>
-                        <p className="progress-text">
-                            Current: {formattedCurrent} / Target: {formattedTarget} <span className="percentage-value">({percentage.toFixed(2)}%)</span>
-                        </p>
-                    </div>
-                );
-            };
-
-            // Combine and sort histories for overall view
-            const overallHistory = useMemo(() => {
-                const combined = [
-                    ...freelancingHistory.map(entry => ({ ...entry, type: 'Freelancing' })),
-                    ...sellingHistory.map(entry => ({ ...entry, type: 'Selling' }))
-                ];
-                return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
-            }, [freelancingHistory, sellingHistory]);
-
-            return (
-                <div className="app-container">
-                    <header className="app-header">
-                        <h1 className="app-title">Project 10 Cr</h1>
-                        <p className="current-date">{currentDate}</p>
-                    </header>
-
-                    <main className="main-content">
-                        {activeTab === 'home' && (
-                            <div className="tab-content" role="tabpanel" id="home-panel" aria-labelledby="home-tab">
-                                {renderProgressBar(freelancingIncome + sellingIncome, 100000000, 'Overall')}
-                                <div className="countdown-card" aria-live="polite">
-                                    <h2>Goal Deadline</h2>
-                                    {countdown.passed ? (
-                                        <p className="countdown-timer">Goal date passed!</p>
-                                    ) : (
-                                        <div className="countdown-grid">
-                                            <div className="countdown-item">
-                                                <span key={countdown.days} className="countdown-value days-value-color">{countdown.days}</span>
-                                                <span className="countdown-label">Days</span>
-                                            </div>
-                                            <div className="countdown-item">
-                                                <span key={countdown.hours} className="countdown-value">{countdown.hours}</span>
-                                                <span className="countdown-label">Hours</span>
-                                            </div>
-                                            <div className="countdown-item">
-                                                <span key={countdown.minutes} className="countdown-value">{countdown.minutes}</span>
-                                                <span className="countdown-label">Minutes</span>
-                                            </div>
-                                            <div className="countdown-item">
-                                                <span key={countdown.seconds} className="countdown-value">{countdown.seconds}</span>
-                                                <span className="countdown-label">Seconds</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <button className="fab-button menu-fab" id="home-menu-fab" onClick={() => setShowHomeMenu(prev => !prev)} aria-label="Open Home Menu">
-                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                                    </svg>
-                                </button>
-                                {showHomeMenu && (
-                                    <div className="home-menu-overlay" role="menu" aria-labelledby="home-menu-fab">
-                                        <button
-                                            role="menuitem"
-                                            onClick={() => { setShowOverallHistory(true); setShowHomeMenu(false); }}
-                                            aria-label="Show Overall Income History"
-                                        >
-                                            Overall Income History
-                                        </button>
-                                    </div>
-                                )}
-                                {showOverallHistory && (
-                                    <HistoryModal
-                                        title="Overall Combined"
-                                        history={overallHistory}
-                                        onClose={() => setShowOverallHistory(false)}
-                                        onEditEntry={handleEditHistoryEntry}
-                                        showTypeColumn={true}
-                                    />
-                                )}
-                            </div>
-                        )}
-
-                        {activeTab === 'freelancing' && (
-                            <div className="tab-content" role="tabpanel" id="freelancing-panel" aria-labelledby="freelancing-tab">
-                                {renderProgressBar(freelancingIncome, 50000000, 'Freelancing')}
-                                <div className="input-card">
-                                    <label htmlFor="freelancing-income-input" className="sr-only">Enter income amount for freelancing</label>
-                                    <div className="input-wrapper">
-                                        <span className="currency-icon" aria-hidden="true">₹</span>
-                                        <input
-                                            id="freelancing-income-input"
-                                            type="number"
-                                            value={freelancingInput}
-                                            onChange={(e) => setFreelancingInput(e.target.value)}
-                                            placeholder="Enter income amount"
-                                            min="0"
-                                            aria-describedby="freelancing-income-help"
-                                        />
-                                    </div>
-                                    <button onClick={() => handleAddIncome('freelancing')}>Add Income</button>
-                                </div>
-                                <button className="fab-button history-fab" onClick={() => setShowFreelancingHistory(true)} aria-label="Show Freelancing Income History">
-                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                        <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
-                                    </svg>
-                                </button>
-                                {showFreelancingHistory && (
-                                    <HistoryModal
-                                        title="Freelancing"
-                                        history={freelancingHistory}
-                                        onClose={() => setShowFreelancingHistory(false)}
-                                        onEditEntry={handleEditHistoryEntry}
-                                        showTypeColumn={false}
-                                    />
-                                )}
-                            </div>
-                        )}
-
-                        {activeTab === 'selling' && (
-                            <div className="tab-content" role="tabpanel" id="selling-panel" aria-labelledby="selling-tab">
-                                {renderProgressBar(sellingIncome, 50000000, 'Selling')}
-                                <div className="input-card">
-                                    <label htmlFor="selling-income-input" className="sr-only">Enter income amount for selling</label>
-                                    <div className="input-wrapper">
-                                        <span className="currency-icon" aria-hidden="true">₹</span>
-                                        <input
-                                            id="selling-income-input"
-                                            type="number"
-                                            value={sellingInput}
-                                            onChange={(e) => setSellingInput(e.target.value)}
-                                            placeholder="Enter income amount"
-                                            min="0"
-                                            aria-describedby="selling-income-help"
-                                        />
-                                    </div>
-                                    <button onClick={() => handleAddIncome('selling')}>Add Income</button>
-                                </div>
-                                <button className="fab-button history-fab" onClick={() => setShowSellingHistory(true)} aria-label="Show Selling Income History">
-                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                        <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
-                                    </svg>
-                                </button>
-                                {showSellingHistory && (
-                                    <HistoryModal
-                                        title="Selling"
-                                        history={sellingHistory}
-                                        onClose={() => setShowSellingHistory(false)}
-                                        onEditEntry={handleEditHistoryEntry}
-                                        showTypeColumn={false}
-                                    />
-                                )}
-                            </div>
-                        )}
-                    </main>
-
-                    <footer className="tab-bar" role="tablist">
-                        <button
-                            className={`tab-button ${activeTab === 'freelancing' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('freelancing')}
-                            role="tab"
-                            aria-controls="freelancing-panel"
-                            aria-selected={activeTab === 'freelancing'}
-                            id="freelancing-tab"
-                        >
-                            Freelancing
-                        </button>
-                        <button
-                            className={`tab-button ${activeTab === 'home' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('home')}
-                            role="tab"
-                            aria-controls="home-panel"
-                            aria-selected={activeTab === 'home'}
-                            id="home-tab"
-                            aria-label="Home"
-                        >
-                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                            </svg>
-                        </button>
-                        <button
-                            className={`tab-button ${activeTab === 'selling' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('selling')}
-                            role="tab"
-                            aria-controls="selling-panel"
-                            aria-selected={activeTab === 'selling'}
-                            id="selling-tab"
-                        >
-                            Selling
-                        </button>
-                    </footer>
-                </div>
-            );
-        };
-
-        const container = document.getElementById('root');
-        if (container) {
-            ReactDOM.render(<Project10CrApp />, container);
-        }
-    </script>
+    <script type="text/babel" data-type="module" src="index.tsx"></script>
 </body>
 </html>
