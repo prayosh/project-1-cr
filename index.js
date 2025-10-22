@@ -1,31 +1,6 @@
-// Global state object
-const state = {
-    activeTab: 'home',
-    freelancingHistory: [],
-    sellingHistory: [],
-    freelancingInput: '',
-    sellingInput: '',
-    freelancingDateInput: new Date().toISOString().substring(0, 10), // YYYY-MM-DD
-    sellingDateInput: new Date().toISOString().substring(0, 10), // YYYY-MM-DD
-    currentDate: '',
-    countdown: { days: '00', hours: '00', minutes: '00', seconds: '00', passed: false },
-    showFreelancingHistory: false,
-    showSellingHistory: false,
-    showHomeMenu: false,
-    showOverallHistory: false,
-    editingId: null, // For HistoryModal
-    editingAmount: '', // For HistoryModal
-    activeRowForActions: null, // For HistoryModal long-press
-    longPressTimer: null, // For HistoryModal long-press
-    showDeleteConfirmation: false, // For HistoryModal
-    entryToDelete: null, // For HistoryModal
-    longPressHandled: false, // To prevent click after long press
-};
-
-const targetDate = new Date('2026-12-31T23:59:59');
-let countdownInterval;
-
-const LONG_PRESS_DELAY = 500; // milliseconds
+// Add explicit imports for React and ReactDOM
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createRoot } from 'react-dom/client'; // Import createRoot from react-dom/client for React 18+
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -35,6 +10,7 @@ const formatCurrency = (amount) => {
 // Helper function to format date for history display (DD/MM/YYYY)
 const formatEntryDate = (isoString) => {
     const date = new Date(isoString);
+    // Use 'en-GB' locale for DD/MM/YYYY
     return date.toLocaleDateString('en-GB'); 
 };
 
@@ -61,717 +37,604 @@ const calculateTimeRemaining = (targetDate) => {
     };
 };
 
-// --- Storage Management ---
-const loadState = () => {
-    const storedFreelancing = localStorage.getItem('freelancingHistory');
-    if (storedFreelancing) {
-        state.freelancingHistory = JSON.parse(storedFreelancing).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) }));
-    }
-    const storedSelling = localStorage.getItem('sellingHistory');
-    if (storedSelling) {
-        state.sellingHistory = JSON.parse(storedSelling).map(entry => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2) }));
-    }
-};
-
-const saveState = () => {
-    localStorage.setItem('freelancingHistory', JSON.stringify(state.freelancingHistory));
-    localStorage.setItem('sellingHistory', JSON.stringify(state.sellingHistory));
-};
-
-// --- UI Rendering Functions ---
-
-const renderProgressBar = (current, target, label) => {
-    const percentage = Math.min(100, (current / target) * 100);
-    const formattedCurrent = formatCurrency(current);
-    const formattedTarget = formatCurrency(target);
-
-    return `
-        <div class="progress-section">
-            <h3 id="${label}-progress-label">${label} Goal (${formattedTarget})</h3>
-            <div class="progress-bar-container" role="progressbar"
-                aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"
-                aria-labelledby="${label}-progress-label">
-                <div class="progress-bar-fill" style="width: ${percentage}%"></div>
-            </div>
-            <p class="progress-text">
-                <span class="current-amount">Current: ${formattedCurrent}</span>
-                <span class="target-amount-line">
-                    Target: <span class="target-amount">${formattedTarget}</span>
-                    <span class="percentage-value">(${percentage.toFixed(2)}%)</span>
-                </span>
-            </p>
-        </div>
-    `;
-};
-
-const renderConfirmationModal = (title, message, onConfirm, onCancel) => {
-    const modalDiv = document.createElement('div');
-    modalDiv.className = 'modal-overlay';
-    modalDiv.setAttribute('role', 'dialog');
-    modalDiv.setAttribute('aria-modal', 'true');
-    modalDiv.setAttribute('aria-labelledby', 'confirmation-modal-title');
-    modalDiv.innerHTML = `
-        <div class="modal-content">
-            <h2 id="confirmation-modal-title">${title}</h2>
-            <p style="text-align: center; margin-bottom: 20px;">${message}</p>
-            <div style="display: flex; justify-content: center; gap: 15px;">
-                <button class="cancel-btn" aria-label="Cancel">Cancel</button>
-                <button class="delete-btn" aria-label="Confirm deletion">Delete</button>
+const ConfirmationModal = ({ title, message, onConfirm, onCancel }) => {
+    return (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmation-modal-title">
+            <div className="modal-content delete-confirmation-modal"> {/* Added specific class for styling */}
+                <h2 id="confirmation-modal-title">{title}</h2>
+                <p style={{textAlign: 'center', marginBottom: '20px'}}>{message}</p>
+                <div style={{display: 'flex', justifyContent: 'center', gap: '15px'}}>
+                    <button className="cancel-btn" onClick={onCancel} aria-label="Cancel">Cancel</button>
+                    <button className="delete-btn" onClick={onConfirm} aria-label="Confirm deletion">Delete</button>
+                </div>
             </div>
         </div>
-    `;
-    modalDiv.querySelector('.cancel-btn').addEventListener('click', onCancel);
-    modalDiv.querySelector('.delete-btn').addEventListener('click', onConfirm);
-    document.body.appendChild(modalDiv);
+    );
 };
 
-const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry, showTypeColumn, tabType) => {
-    const modalDiv = document.createElement('div');
-    modalDiv.className = 'modal-overlay';
-    modalDiv.setAttribute('role', 'dialog');
-    modalDiv.setAttribute('aria-modal', 'true');
-    modalDiv.setAttribute('aria-labelledby', 'modal-title');
+const HistoryModal = ({ title, history, onClose, onEditEntry, onDeleteEntry, showTypeColumn, tabType }) => {
+    const [editingId, setEditingId] = useState(null);
+    const [editingAmount, setEditingAmount] = useState('');
+    const [activeRowForActions, setActiveRowForActions] = useState(null); // To show edit/delete
+    const longPressTimer = useRef(null);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [entryToDelete, setEntryToDelete] = useState(null);
 
-    let historyTableHtml = '';
-    if (history.length === 0) {
-        historyTableHtml = '<p>No entries yet.</p>';
-    } else {
-        historyTableHtml = `
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            ${showTypeColumn ? '<th>Type</th>' : ''}
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${history.map(entry => `
-                            <tr 
-                                data-id="${entry.id}" 
-                                data-type="${entry.type}"
-                                class="${state.activeRowForActions === entry.id ? 'active-actions' : ''}"
-                                tabindex="0"
-                                role="row"
-                            >
-                                <td>${formatEntryDate(entry.date)}</td>
-                                ${showTypeColumn ? `<td>${entry.type}</td>` : ''}
-                                <td style="position: relative;">
-                                    ${state.editingId === entry.id ? `
-                                        <input
-                                            type="number"
-                                            class="history-edit-input"
-                                            value="${state.editingAmount}"
-                                            min="0"
-                                            aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}"
-                                            data-id="${entry.id}"
-                                        />
-                                        <div class="history-action-buttons-overlay visible">
-                                            <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
-                                            <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
-                                        </div>
-                                    ` : `
-                                        ${formatCurrency(entry.amount)}
-                                        <div class="history-action-buttons-overlay">
-                                            <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
-                                            <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
-                                        </div>
-                                    `}
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
+    const LONG_PRESS_DELAY = 500; // milliseconds
 
-    modalDiv.innerHTML = `
-        <div class="modal-content">
-            <h2 id="modal-title">${title} History</h2>
-            ${historyTableHtml}
-            <button class="modal-close-button" aria-label="Close history">&times;</button>
-        </div>
-    `;
-
-    document.body.appendChild(modalDiv);
-
-    modalDiv.querySelector('.modal-close-button').addEventListener('click', () => {
-        state.activeRowForActions = null; // Clear active row when closing modal
-        state.editingId = null; // Clear editing state
-        state.showDeleteConfirmation = false; // Clear confirmation state
-        state.entryToDelete = null; // Clear entry to delete
-        onClose();
-    });
-
-    // Add event listeners for table rows and buttons
-    modalDiv.querySelectorAll('tbody tr').forEach(row => {
-        const entryId = row.dataset.id;
-        const entryType = row.dataset.type;
-        const entry = history.find(e => e.id === entryId);
-
-        const handleLongPressStart = (event) => {
-            state.longPressHandled = false;
-            // Prevent text selection or other default browser actions on long press
-            if (event.type === 'touchstart') {
-                event.preventDefault(); 
-            }
-
-            state.longPressTimer = setTimeout(() => {
-                state.longPressHandled = true;
-                state.activeRowForActions = entryId;
-                renderApp(); // Re-render to show action buttons
-            }, LONG_PRESS_DELAY);
-        };
-
-        const handleLongPressEnd = () => {
-            if (state.longPressTimer) {
-                clearTimeout(state.longPressTimer);
-                state.longPressTimer = null;
-            }
-            // If it was a short press, hide actions immediately
-            if (!state.longPressHandled && state.activeRowForActions === entryId && state.editingId !== entryId) {
-                state.activeRowForActions = null;
-                renderApp();
-            }
-            state.longPressHandled = false; // Reset for next interaction
-        };
-
-        // Add `pointerleave` for mouse, `touchend`, `touchcancel` for touch
-        row.addEventListener('mousedown', handleLongPressStart);
-        row.addEventListener('mouseup', handleLongPressEnd);
-        row.addEventListener('mouseleave', handleLongPressEnd); // Use mouseleave for desktop hover exit
-        row.addEventListener('touchstart', handleLongPressStart, { passive: false }); // passive: false to allow preventDefault
-        row.addEventListener('touchend', handleLongPressEnd);
-        row.addEventListener('touchcancel', handleLongPressEnd);
-        
-        // Hide actions if clicking another row or outside
-        document.addEventListener('mousedown', (e) => {
-            if (!row.contains(e.target) && state.activeRowForActions === entryId && state.editingId !== entryId) {
-                state.activeRowForActions = null;
-                renderApp();
-            }
-        });
-
-        if (state.editingId === entryId) {
-            const input = row.querySelector('.history-edit-input');
-            if (input) input.addEventListener('input', (e) => { state.editingAmount = e.target.value; });
-            
-            const saveBtn = row.querySelector('.save-btn');
-            if (saveBtn) saveBtn.addEventListener('click', () => {
-                const newAmount = parseFloat(state.editingAmount);
-                if (isNaN(newAmount) || newAmount <= 0) {
-                    alert('Please enter a valid positive number.');
-                    return;
-                }
-                // Determine the correct type for the entry, preferring tabType if available, otherwise entryType
-                const effectiveType = tabType || entryType;
-                onEditEntry(entryId, newAmount, effectiveType);
-                state.editingId = null;
-                state.editingAmount = '';
-                state.activeRowForActions = null;
-                renderApp(); // Re-render to update history and close edit mode
-            });
-            const cancelEditBtn = row.querySelector('.cancel-edit-btn');
-            if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => {
-                state.editingId = null;
-                state.editingAmount = '';
-                state.activeRowForActions = null;
-                renderApp(); // Re-render to close edit mode
-            });
-        } else {
-            const editBtn = row.querySelector('.edit-btn');
-            if (editBtn) editBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent row's click from interfering
-                state.editingId = entryId;
-                state.editingAmount = entry.amount.toString();
-                state.activeRowForActions = null; // Hide actions after clicking edit
-                renderApp(); // Re-render to open edit mode
-            });
-            const deleteBtn = row.querySelector('.delete-btn');
-            if (deleteBtn) deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent row's click from interfering
-                state.entryToDelete = entry;
-                state.showDeleteConfirmation = true;
-                state.activeRowForActions = null; // Hide actions after clicking delete
-                renderApp(); // Re-render to show confirmation modal
-            });
+    const handleActionStart = useCallback((entry) => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
         }
-    });
+        longPressTimer.current = setTimeout(() => {
+            setActiveRowForActions(entry.id);
+        }, LONG_PRESS_DELAY);
+    }, []);
 
-    if (state.showDeleteConfirmation && state.entryToDelete) {
-        renderConfirmationModal(
-            "Confirm Deletion",
-            `Are you sure you want to delete this entry of ${formatCurrency(state.entryToDelete.amount)} on ${formatEntryDate(state.entryToDelete.date)}?`,
-            () => { // onConfirm
-                const effectiveType = tabType || state.entryToDelete.type; // Use tabType if available, else entry type
-                onDeleteEntry(state.entryToDelete.id, effectiveType);
-                state.showDeleteConfirmation = false;
-                state.entryToDelete = null;
-                renderApp(); // Re-render to update history and close modal
-            },
-            () => { // onCancel
-                state.showDeleteConfirmation = false;
-                state.entryToDelete = null;
-                renderApp(); // Re-render to close modal
-            }
-        );
-    }
-};
+    const handleActionEnd = useCallback(() => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+    }, []);
+    
+    // For mouse hover to show actions immediately, but long press to be primary
+    const handleMouseEnter = useCallback((entry) => {
+        if (!editingId) { // Only show actions on hover if not actively editing
+            setActiveRowForActions(entry.id);
+        }
+    }, [editingId]);
 
-const renderHomeMenuOverlay = () => {
-    const menuDiv = document.createElement('div');
-    menuDiv.className = `home-menu-overlay ${state.showHomeMenu ? 'open' : ''}`;
-    menuDiv.setAttribute('role', 'menu');
-    menuDiv.setAttribute('aria-labelledby', 'home-menu-fab');
-    menuDiv.innerHTML = `
-        <div class="menu-header">Menu</div>
-        <button role="menuitem" class="overall-history-btn" aria-label="Show Overall Income History">
-            Overall Income History
-        </button>
-    `;
-    menuDiv.querySelector('.overall-history-btn').addEventListener('click', () => {
-        state.showOverallHistory = true;
-        state.showHomeMenu = false;
-        renderApp();
-    });
-    document.body.appendChild(menuDiv);
+    const handleMouseLeave = useCallback(() => {
+        if (!editingId) { // Only hide actions on hover out if not actively editing
+            setActiveRowForActions(null);
+        }
+    }, [editingId]);
 
-    const backdropDiv = document.createElement('div');
-    backdropDiv.className = `sidebar-backdrop ${state.showHomeMenu ? 'open' : ''}`;
-    backdropDiv.setAttribute('aria-hidden', !state.showHomeMenu);
-    backdropDiv.addEventListener('click', () => {
-        state.showHomeMenu = false;
-        renderApp();
-    });
-    document.body.appendChild(backdropDiv);
+    const handleEditClick = (entry) => {
+        setEditingId(entry.id);
+        setEditingAmount(entry.amount.toString());
+        setActiveRowForActions(null); // Hide actions after clicking edit
+    };
 
-    const homeMenuFab = document.getElementById('home-menu-fab');
+    const handleSaveEdit = (entry) => {
+        const newAmount = parseFloat(editingAmount);
+        if (isNaN(newAmount) || newAmount <= 0) {
+            alert('Please enter a valid positive number.');
+            return;
+        }
+        onEditEntry(entry.id, newAmount, (tabType || entry.type));
+        setEditingId(null);
+        setEditingAmount('');
+        setActiveRowForActions(null); // Hide actions after save
+    };
 
-    // Event listeners for closing menu on click outside or escape key
-    const handleClickOutside = (event) => {
-        if (!menuDiv.contains(event.target) && (homeMenuFab && !homeMenuFab.contains(event.target))) {
-            state.showHomeMenu = false;
-            renderApp();
-            // Clean up listeners
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('touchstart', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setEditingAmount('');
+        setActiveRowForActions(null); // Hide actions after cancel
+    };
+
+    const handleDeleteClick = (entry) => {
+        setEntryToDelete(entry);
+        setShowDeleteConfirmation(true);
+        setActiveRowForActions(null); // Hide actions after clicking delete
+    };
+
+    const confirmDelete = () => {
+        if (entryToDelete) {
+            onDeleteEntry(entryToDelete.id, (tabType || entryToDelete.type));
+            setShowDeleteConfirmation(false);
+            setEntryToDelete(null);
         }
     };
 
-    const handleEscape = (event) => {
-        if (event.key === 'Escape') {
-            state.showHomeMenu = false;
-            renderApp();
-            // Clean up listeners
+    const cancelDelete = () => {
+        setShowDeleteConfirmation(false);
+        setEntryToDelete(null);
+    };
+
+    return (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div className="modal-content">
+                <h2 id="modal-title">{title} History</h2>
+                {history.length === 0 ? (
+                    <p>No entries yet.</p>
+                ) : (
+                    <div className="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    {showTypeColumn && <th>Type</th>}
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {history.map((entry) => (
+                                    <tr 
+                                        key={entry.id} 
+                                        onMouseDown={() => handleActionStart(entry)}
+                                        onMouseUp={handleActionEnd}
+                                        onTouchStart={() => handleActionStart(entry)}
+                                        onTouchEnd={handleActionEnd}
+                                        onTouchCancel={handleActionEnd}
+                                        onMouseEnter={() => handleMouseEnter(entry)} // Show actions on hover
+                                        onMouseLeave={handleMouseLeave} // Hide actions on hover out
+                                        tabIndex={0}
+                                        role="row"
+                                    >
+                                        <td>{formatEntryDate(entry.date)}</td>
+                                        {showTypeColumn && <td>{entry.type}</td>}
+                                        <td className="amount-cell">
+                                            {editingId === entry.id ? (
+                                                <div className="editing-actions">
+                                                    <input
+                                                        type="number"
+                                                        className="history-edit-input"
+                                                        value={editingAmount}
+                                                        onChange={(e) => setEditingAmount(e.target.value)}
+                                                        min="0"
+                                                        aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}
+                                                    />
+                                                    <div className="history-action-buttons-overlay visible editing-mode">
+                                                        <button 
+                                                            className="save-btn" 
+                                                            onClick={(e) => { e.stopPropagation(); handleSaveEdit(entry); }} 
+                                                            aria-label="Save edited amount"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                                            </svg>
+                                                        </button>
+                                                        <button 
+                                                            className="cancel-btn" 
+                                                            onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }} 
+                                                            aria-label="Cancel editing"
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {formatCurrency(entry.amount)}
+                                                    <div className={`history-action-buttons-overlay ${activeRowForActions === entry.id ? 'visible' : ''}`}>
+                                                        <button 
+                                                            className="edit-btn" 
+                                                            onClick={(e) => { e.stopPropagation(); handleEditClick(entry); }} 
+                                                            aria-label={`Edit amount for entry on ${formatEntryDate(entry.date)}`}
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                                                        </button>
+                                                        <button 
+                                                            className="delete-btn" 
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(entry); }} 
+                                                            aria-label={`Delete entry on ${formatEntryDate(entry.date)}`}
+                                                        >
+                                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5L13.5 3h-3L9.5 4H5v2h14V4z"/></svg>
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                <button className="modal-close-button" onClick={onClose} aria-label="Close history">
+                    &times;
+                </button>
+            </div>
+            {showDeleteConfirmation && entryToDelete && (
+                <ConfirmationModal
+                    title="Confirm Deletion"
+                    message={`Are you sure you want to delete this entry of ${formatCurrency(entryToDelete.amount)} on ${formatEntryDate(entryToDelete.date)}?`}
+                    onConfirm={confirmDelete}
+                    onCancel={cancelDelete}
+                />
+            )}
+        </div>
+    );
+};
+
+const HomeMenuOverlay = ({ isOpen, onClose, onShowOverallHistory }) => {
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside);
+            document.addEventListener('keydown', handleEscape);
+        }
+        return () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
+        };
+    }, [isOpen, onClose]);
+
+    return (
+        <>
+            <div className={`home-menu-overlay ${isOpen ? 'open' : ''}`} ref={menuRef} role="menu" aria-labelledby="home-menu-fab">
+                <div className="menu-header">Menu</div>
+                <button
+                    role="menuitem"
+                    onClick={() => { onShowOverallHistory(); onClose(); }}
+                    aria-label="Show Overall Income History"
+                >
+                    Overall Income History
+                </button>
+                {/* Add more menu items here if needed */}
+            </div>
+            <div className={`sidebar-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose} aria-hidden={!isOpen}></div>
+        </>
+    );
+};
+
+const Project10CrApp = () => {
+    const [activeTab, setActiveTab] = useState('home');
+    
+    const [freelancingHistory, setFreelancingHistory] = useState(() => {
+        const stored = localStorage.getItem('freelancingHistory');
+        // Ensure IDs are unique for older entries and new ones, and dates are ISO strings
+        return stored ? JSON.parse(stored).map((entry) => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2), date: new Date(entry.date).toISOString() })) : [];
+    });
+    const [sellingHistory, setSellingHistory] = useState(() => {
+        const stored = localStorage.getItem('sellingHistory');
+        return stored ? JSON.parse(stored).map((entry) => ({ ...entry, id: entry.id || Date.now().toString() + Math.random().toString(36).substring(2), date: new Date(entry.date).toISOString() })) : [];
+    });
+
+    const freelancingIncome = useMemo(() => 
+        freelancingHistory.reduce((sum, entry) => sum + entry.amount, 0), 
+    [freelancingHistory]);
+    
+    const sellingIncome = useMemo(() => 
+        sellingHistory.reduce((sum, entry) => sum + entry.amount, 0), 
+    [sellingHistory]);
+
+    const [freelancingInput, setFreelancingInput] = useState('');
+    const [sellingInput, setSellingInput] = useState('');
+    const [freelancingDateInput, setFreelancingDateInput] = useState(new Date().toISOString().substring(0, 10)); // YYYY-MM-DD
+    const [sellingDateInput, setSellingDateInput] = useState(new Date().toISOString().substring(0, 10)); // YYYY-MM-DD
+
+    const [currentDate, setCurrentDate] = useState('');
+    const [countdown, setCountdown] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00', passed: false });
+
+    const [showFreelancingHistory, setShowFreelancingHistory] = useState(false);
+    const [showSellingHistory, setShowSellingHistory] = useState(false);
+    const [showHomeMenu, setShowHomeMenu] = useState(false);
+    const [showOverallHistory, setShowOverallHistory] = useState(false);
+
+    const targetDate = useRef(new Date('2026-12-31T23:59:59'));
+
+    useEffect(() => {
+        const today = new Date();
+        setCurrentDate(today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+
+        const timer = setInterval(() => {
+            setCountdown(calculateTimeRemaining(targetDate.current));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('freelancingHistory', JSON.stringify(freelancingHistory));
+    }, [freelancingHistory]);
+
+    useEffect(() => {
+        localStorage.setItem('sellingHistory', JSON.stringify(sellingHistory));
+    }, [sellingHistory]);
+
+    const handleAddIncome = useCallback((type) => {
+        const inputAmount = type === 'freelancing' ? freelancingInput : sellingInput;
+        const selectedDate = type === 'freelancing' ? freelancingDateInput : sellingDateInput;
+        const amount = parseFloat(inputAmount);
+
+        if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid positive number for income.');
+            return;
         }
+        if (!selectedDate) {
+            alert('Please select a date.');
+            return;
+        }
+
+        const newEntry = { id: Date.now().toString() + Math.random().toString(36).substring(2), amount, date: new Date(selectedDate).toISOString(), type }; // Added ID and type
+
+        if (type === 'freelancing') {
+            setFreelancingHistory(prev => [...prev, newEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setFreelancingInput('');
+            setFreelancingDateInput(new Date().toISOString().substring(0, 10)); // Reset date to current
+        } else { // type === 'selling'
+            setSellingHistory(prev => [...prev, newEntry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setSellingInput('');
+            setSellingDateInput(new Date().toISOString().substring(0, 10)); // Reset date to current
+        }
+    }, [freelancingInput, sellingInput, freelancingDateInput, sellingDateInput]);
+
+    const handleEditHistoryEntry = useCallback((id, newAmount, type) => {
+        const updateHistory = (prevHistory) => {
+            const updated = prevHistory.map(entry =>
+                entry.id === id ? { ...entry, amount: newAmount } : entry
+            );
+            return updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        };
+
+        if (type === 'freelancing' || type === 'Freelancing') { 
+            setFreelancingHistory(updateHistory);
+        } else if (type === 'selling' || type === 'Selling') { 
+            setSellingHistory(updateHistory);
+        }
+    }, []);
+
+    const handleDeleteHistoryEntry = useCallback((id, type) => {
+        const deleteHistory = (prevHistory) => 
+            prevHistory.filter(entry => entry.id !== id);
+
+        if (type === 'freelancing' || type === 'Freelancing') {
+            setFreelancingHistory(deleteHistory);
+        } else if (type === 'selling' || type === 'Selling') {
+            setSellingHistory(deleteHistory);
+        }
+    }, []);
+
+
+    const renderProgressBar = (current, target, label) => {
+        const percentage = Math.min(100, (current / target) * 100);
+        const formattedCurrent = formatCurrency(current);
+        const formattedTarget = formatCurrency(target);
+
+        return (
+            <div className="progress-section">
+                <h3 id={`${label}-progress-label`}>{label} Goal ({formattedTarget})</h3>
+                <div className="progress-bar-container" role="progressbar"
+                    aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}
+                    aria-labelledby={`${label}-progress-label`}>
+                    <div className="progress-bar-fill" style={{ width: `${percentage}%` }}></div>
+                </div>
+                <p className="progress-text">
+                    <span className="current-amount">Current: {formattedCurrent}</span>
+                    <span className="target-amount-line">
+                        Target: <span className="target-amount">{formattedTarget}</span>
+                        <span className="percentage-value">({percentage.toFixed(2)}%)</span>
+                    </span>
+                </p>
+            </div>
+        );
     };
 
-    if (state.showHomeMenu) {
-        // Add listeners only when menu is open
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-    }
-};
+    // Combine and sort histories for overall view
+    const overallHistory = useMemo(() => {
+        const combined = [
+            ...freelancingHistory.map(entry => ({ ...entry, type: 'Freelancing' })),
+            ...sellingHistory.map(entry => ({ ...entry, type: 'Selling' }))
+        ];
+        return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
+    }, [freelancingHistory, sellingHistory]);
 
-const renderApp = () => {
-    const root = document.getElementById('root');
-    if (!root) return;
+    return (
+        <div className="app-container">
+            <header className="app-header">
+                <h1 className="app-title">Project 10 Cr</h1>
+                <p className="current-date">{currentDate}</p>
+            </header>
 
-    // Clear previous content
-    root.innerHTML = '';
-    document.body.querySelectorAll('.modal-overlay').forEach(modal => modal.remove());
-    document.body.querySelectorAll('.home-menu-overlay').forEach(menu => menu.remove());
-    document.body.querySelectorAll('.sidebar-backdrop').forEach(backdrop => backdrop.remove());
-    document.body.querySelectorAll('.fab-button').forEach(fab => fab.remove());
-
-
-    const appContainer = document.createElement('div');
-    appContainer.className = 'app-container';
-
-    // Header
-    appContainer.innerHTML += `
-        <header class="app-header">
-            <h1 class="app-title">Project 10 Cr</h1>
-            <p class="current-date">${state.currentDate}</p>
-        </header>
-    `;
-
-    // Main Content
-    const mainContent = document.createElement('main');
-    mainContent.className = 'main-content';
-
-    const freelancingIncome = state.freelancingHistory.reduce((sum, entry) => sum + entry.amount, 0);
-    const sellingIncome = state.sellingHistory.reduce((sum, entry) => sum + entry.amount, 0);
-
-    if (state.activeTab === 'home') {
-        mainContent.innerHTML += `
-            <div class="tab-content" role="tabpanel" id="home-panel" aria-labelledby="home-tab">
-                ${renderProgressBar(freelancingIncome + sellingIncome, 100000000, 'Overall')}
-                <div class="countdown-card" aria-live="polite">
-                    <h2>Goal Deadline</h2>
-                    ${state.countdown.passed ? `
-                        <p class="countdown-timer">Goal date passed!</p>
-                    ` : `
-                        <div class="countdown-grid">
-                            <div class="countdown-item">
-                                <span class="countdown-value days-value-color">${state.countdown.days}</span>
-                                <span class="countdown-label">Days</span>
-                            </div>
-                            <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.hours}</span>
-                                <span class="countdown-label">Hours</span>
-                            </div>
-                            <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.minutes}</span>
-                                <span class="countdown-label">Minutes</span>
-                            </div>
-                            <div class="countdown-item">
-                                <span class="countdown-value">${state.countdown.seconds}</span>
-                                <span class="countdown-label">Seconds</span>
-                            </div>
+            <main className="main-content">
+                {activeTab === 'home' && (
+                    <div className="tab-content" role="tabpanel" id="home-panel" aria-labelledby="home-tab">
+                        {renderProgressBar(freelancingIncome + sellingIncome, 100000000, 'Overall')}
+                        <div className="countdown-card" aria-live="polite">
+                            <h2>Goal Deadline</h2>
+                            {countdown.passed ? (
+                                <p className="countdown-timer">Goal date passed!</p>
+                            ) : (
+                                <div className="countdown-grid">
+                                    <div className="countdown-item">
+                                        <span key={countdown.days} className="countdown-value days-value-color">{countdown.days}</span>
+                                        <span className="countdown-label">Days</span>
+                                    </div>
+                                    <div className="countdown-item">
+                                        <span key={countdown.hours} className="countdown-value">{countdown.hours}</span>
+                                        <span className="countdown-label">Hours</span>
+                                    </div>
+                                    <div className="countdown-item">
+                                        <span key={countdown.minutes} className="countdown-value">{countdown.minutes}</span>
+                                        <span className="countdown-label">Minutes</span>
+                                    </div>
+                                    <div className="countdown-item">
+                                        <span key={countdown.seconds} className="countdown-value">{countdown.seconds}</span>
+                                        <span className="countdown-label">Seconds</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    `}
-                </div>
-            </div>
-        `;
-        // Add FAB button for menu
-        const menuFab = document.createElement('button');
-        menuFab.className = 'fab-button menu-fab';
-        menuFab.id = 'home-menu-fab';
-        menuFab.setAttribute('aria-label', 'Open Home Menu');
-        menuFab.innerHTML = `
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-            </svg>
-        `;
-        menuFab.addEventListener('click', () => {
-            state.showHomeMenu = !state.showHomeMenu;
-            renderApp();
-        });
-        document.body.appendChild(menuFab);
-
-        if (state.showHomeMenu) {
-            renderHomeMenuOverlay();
-        }
-        if (state.showOverallHistory) {
-            const combinedHistory = [
-                ...state.freelancingHistory.map(entry => ({ ...entry, type: 'Freelancing' })),
-                ...state.sellingHistory.map(entry => ({ ...entry, type: 'Selling' }))
-            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-            renderHistoryModal(
-                "Overall Combined",
-                combinedHistory,
-                () => { state.showOverallHistory = false; renderApp(); },
-                handleEditHistoryEntry,
-                handleDeleteHistoryEntry,
-                true, // showTypeColumn
-                null // tabType is null for overall
-            );
-        }
-
-    } else if (state.activeTab === 'freelancing') {
-        mainContent.innerHTML += `
-            <div class="tab-content" role="tabpanel" id="freelancing-panel" aria-labelledby="freelancing-tab">
-                ${renderProgressBar(freelancingIncome, 50000000, 'Freelancing')}
-                <div class="input-card">
-                    <div class="input-row">
-                        <label for="freelancing-income-input" class="sr-only">Enter income amount for freelancing</label>
-                        <div class="input-wrapper">
-                            <span class="currency-icon" aria-hidden="true">₹</span>
-                            <input
-                                id="freelancing-income-input"
-                                type="number"
-                                value="${state.freelancingInput}"
-                                placeholder="Amount"
-                                min="0"
-                                aria-describedby="freelancing-income-help"
+                        <button className="fab-button menu-fab" id="home-menu-fab" onClick={() => setShowHomeMenu(prev => !prev)} aria-label="Open Home Menu">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                            </svg>
+                        </button>
+                        <HomeMenuOverlay 
+                            isOpen={showHomeMenu}
+                            onClose={() => setShowHomeMenu(false)}
+                            onShowOverallHistory={() => setShowOverallHistory(true)}
+                        />
+                        {showOverallHistory && (
+                            <HistoryModal
+                                title="Overall Combined"
+                                history={overallHistory}
+                                onClose={() => setShowOverallHistory(false)}
+                                onEditEntry={handleEditHistoryEntry}
+                                onDeleteEntry={handleDeleteHistoryEntry}
+                                showTypeColumn={true}
+                                tabType={null} // Overall history uses entry.type for differentiation
                             />
-                        </div>
-                        <label for="freelancing-date-input" class="sr-only">Select date for freelancing income</label>
-                        <div class="input-wrapper date-input">
-                            <input
-                                id="freelancing-date-input"
-                                type="date"
-                                value="${state.freelancingDateInput}"
-                                aria-label="Select date"
-                                title="Format: DD/MM/YYYY"
-                                max="${new Date().toISOString().substring(0, 10)}"
-                            />
-                        </div>
+                        )}
                     </div>
-                    <button id="add-freelancing-income-btn">Add Income</button>
-                </div>
-            </div>
-        `;
+                )}
 
-        // Add event listeners for freelancing inputs and button
-        setTimeout(() => { // Ensure elements are in DOM
-            const incomeInput = document.getElementById('freelancing-income-input');
-            const dateInput = document.getElementById('freelancing-date-input');
-            const addButton = document.getElementById('add-freelancing-income-btn');
-
-            if (incomeInput) incomeInput.addEventListener('input', (e) => { state.freelancingInput = e.target.value; });
-            if (dateInput) dateInput.addEventListener('change', (e) => { state.freelancingDateInput = e.target.value; });
-            if (addButton) addButton.addEventListener('click', () => handleAddIncome('freelancing'));
-        });
-
-        // Add FAB button for history
-        const historyFab = document.createElement('button');
-        historyFab.className = 'fab-button history-fab';
-        historyFab.setAttribute('aria-label', 'Show Freelancing Income History');
-        historyFab.innerHTML = `
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
-            </svg>
-        `;
-        historyFab.addEventListener('click', () => {
-            state.showFreelancingHistory = true;
-            renderApp();
-        });
-        document.body.appendChild(historyFab);
-
-        if (state.showFreelancingHistory) {
-            renderHistoryModal(
-                "Freelancing",
-                state.freelancingHistory,
-                () => { state.showFreelancingHistory = false; state.editingId = null; state.activeRowForActions = null; renderApp(); },
-                handleEditHistoryEntry,
-                handleDeleteHistoryEntry,
-                false, // showTypeColumn
-                'freelancing' // tabType
-            );
-        }
-
-    } else if (state.activeTab === 'selling') {
-        mainContent.innerHTML += `
-            <div class="tab-content" role="tabpanel" id="selling-panel" aria-labelledby="selling-tab">
-                ${renderProgressBar(sellingIncome, 50000000, 'Selling')}
-                <div class="input-card">
-                    <div class="input-row">
-                        <label for="selling-income-input" class="sr-only">Enter income amount for selling</label>
-                        <div class="input-wrapper">
-                            <span class="currency-icon" aria-hidden="true">₹</span>
-                            <input
-                                id="selling-income-input"
-                                type="number"
-                                value="${state.sellingInput}"
-                                placeholder="Amount"
-                                min="0"
-                                aria-describedby="selling-income-help"
-                            />
+                {activeTab === 'freelancing' && (
+                    <div className="tab-content" role="tabpanel" id="freelancing-panel" aria-labelledby="freelancing-tab">
+                        {renderProgressBar(freelancingIncome, 50000000, 'Freelancing')}
+                        <div className="input-card">
+                            <div className="input-row">
+                                <label htmlFor="freelancing-income-input" className="sr-only">Enter income amount for freelancing</label>
+                                <div className="input-wrapper">
+                                    <span className="currency-icon" aria-hidden="true">₹</span>
+                                    <input
+                                        id="freelancing-income-input"
+                                        type="number"
+                                        value={freelancingInput}
+                                        onChange={(e) => setFreelancingInput(e.target.value)}
+                                        placeholder="Amount"
+                                        min="0"
+                                        aria-describedby="freelancing-income-help"
+                                    />
+                                </div>
+                                <label htmlFor="freelancing-date-input" className="sr-only">Select date for freelancing income</label>
+                                <div className="input-wrapper date-input">
+                                    <input
+                                        id="freelancing-date-input"
+                                        type="date"
+                                        value={freelancingDateInput}
+                                        onChange={(e) => setFreelancingDateInput(e.target.value)}
+                                        aria-label="Select date"
+                                        title="Format: DD/MM/YYYY" {/* Added title attribute for hint */}
+                                        max={new Date().toISOString().substring(0, 10)} // Prevent future dates
+                                    />
+                                </div>
+                            </div>
+                            <button onClick={() => handleAddIncome('freelancing')}>Add Income</button>
                         </div>
-                        <label for="selling-date-input" class="sr-only">Select date for selling income</label>
-                        <div class="input-wrapper date-input">
-                            <input
-                                id="selling-date-input"
-                                type="date"
-                                value="${state.sellingDateInput}"
-                                aria-label="Select date"
-                                title="Format: DD/MM/YYYY"
-                                max="${new Date().toISOString().substring(0, 10)}"
+                        <button className="fab-button history-fab" onClick={() => setShowFreelancingHistory(true)} aria-label="Show Freelancing Income History">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
+                            </svg>
+                        </button>
+                        {showFreelancingHistory && (
+                            <HistoryModal
+                                title="Freelancing"
+                                history={freelancingHistory.slice(0, 5)} {/* Display only recent 5 */}
+                                onClose={() => setShowFreelancingHistory(false)}
+                                onEditEntry={handleEditHistoryEntry}
+                                onDeleteEntry={handleDeleteHistoryEntry}
+                                showTypeColumn={false}
+                                tabType="freelancing" // Explicitly pass tab type
                             />
-                        </div>
+                        )}
                     </div>
-                    <button id="add-selling-income-btn">Add Income</button>
-                </div>
-            </div>
-        `;
-        // Add event listeners for selling inputs and button
-        setTimeout(() => { // Ensure elements are in DOM
-            const incomeInput = document.getElementById('selling-income-input');
-            const dateInput = document.getElementById('selling-date-input');
-            const addButton = document.getElementById('add-selling-income-btn');
+                )}
 
-            if (incomeInput) incomeInput.addEventListener('input', (e) => { state.sellingInput = e.target.value; });
-            if (dateInput) dateInput.addEventListener('change', (e) => { state.sellingDateInput = e.target.value; });
-            if (addButton) addButton.addEventListener('click', () => handleAddIncome('selling'));
-        });
+                {activeTab === 'selling' && (
+                    <div className="tab-content" role="tabpanel" id="selling-panel" aria-labelledby="selling-tab">
+                        {renderProgressBar(sellingIncome, 50000000, 'Selling')}
+                        <div className="input-card">
+                            <div className="input-row">
+                                <label htmlFor="selling-income-input" className="sr-only">Enter income amount for selling</label>
+                                <div className="input-wrapper">
+                                    <span className="currency-icon" aria-hidden="true">₹</span>
+                                    <input
+                                        id="selling-income-input"
+                                        type="number"
+                                        value={sellingInput}
+                                        onChange={(e) => setSellingInput(e.target.value)}
+                                        placeholder="Amount"
+                                        min="0"
+                                        aria-describedby="selling-income-help"
+                                    />
+                                </div>
+                                <label htmlFor="selling-date-input" className="sr-only">Select date for selling income</label>
+                                <div className="input-wrapper date-input">
+                                    <input
+                                        id="selling-date-input"
+                                        type="date"
+                                        value={sellingDateInput}
+                                        onChange={(e) => setSellingDateInput(e.target.value)}
+                                        aria-label="Select date"
+                                        title="Format: DD/MM/YYYY" {/* Added title attribute for hint */}
+                                        max={new Date().toISOString().substring(0, 10)} // Prevent future dates
+                                    />
+                                </div>
+                            </div>
+                            <button onClick={() => handleAddIncome('selling')}>Add Income</button>
+                        </div>
+                        <button className="fab-button history-fab" onClick={() => setShowSellingHistory(true)} aria-label="Show Selling Income History">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
+                            </svg>
+                        </button>
+                        {showSellingHistory && (
+                            <HistoryModal
+                                title="Selling"
+                                history={sellingHistory.slice(0, 5)} {/* Display only recent 5 */}
+                                onClose={() => setShowSellingHistory(false)}
+                                onEditEntry={handleEditHistoryEntry}
+                                onDeleteEntry={handleDeleteHistoryEntry}
+                                showTypeColumn={false}
+                                tabType="selling" // Explicitly pass tab type
+                            />
+                        )}
+                    </div>
+                )}
+            </main>
 
-        // Add FAB button for history
-        const historyFab = document.createElement('button');
-        historyFab.className = 'fab-button history-fab';
-        historyFab.setAttribute('aria-label', 'Show Selling Income History');
-        historyFab.innerHTML = `
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2z"/>
-            </svg>
-        `;
-        historyFab.addEventListener('click', () => {
-            state.showSellingHistory = true;
-            renderApp();
-        });
-        document.body.appendChild(historyFab);
-
-        if (state.showSellingHistory) {
-            renderHistoryModal(
-                "Selling",
-                state.sellingHistory,
-                () => { state.showSellingHistory = false; state.editingId = null; state.activeRowForActions = null; renderApp(); },
-                handleEditHistoryEntry,
-                handleDeleteHistoryEntry,
-                false, // showTypeColumn
-                'selling' // tabType
-            );
-        }
-    }
-    appContainer.appendChild(mainContent);
-
-    // Footer (Tab Bar)
-    appContainer.innerHTML += `
-        <footer class="tab-bar" role="tablist">
-            <button
-                class="tab-button ${state.activeTab === 'freelancing' ? 'active' : ''}"
-                data-tab="freelancing"
-                role="tab"
-                aria-controls="freelancing-panel"
-                aria-selected="${state.activeTab === 'freelancing'}"
-                id="freelancing-tab"
-            >
-                Freelancing
-            </button>
-            <button
-                class="tab-button ${state.activeTab === 'home' ? 'active' : ''}"
-                data-tab="home"
-                role="tab"
-                aria-controls="home-panel"
-                aria-selected="${state.activeTab === 'home'}"
-                id="home-tab"
-                aria-label="Home"
-            >
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                </svg>
-            </button>
-            <button
-                class="tab-button ${state.activeTab === 'selling' ? 'active' : ''}"
-                data-tab="selling"
-                role="tab"
-                aria-controls="selling-panel"
-                aria-selected="${state.activeTab === 'selling'}"
-                id="selling-tab"
-            >
-                Selling
-            </button>
-        </footer>
-    `;
-    root.appendChild(appContainer);
-
-    // Attach tab bar event listeners
-    appContainer.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', (e) => {
-            state.activeTab = e.currentTarget.dataset.tab;
-            // Reset modal states when changing tabs
-            state.showFreelancingHistory = false;
-            state.showSellingHistory = false;
-            state.showHomeMenu = false;
-            state.showOverallHistory = false;
-            state.editingId = null;
-            state.activeRowForActions = null;
-            state.showDeleteConfirmation = false;
-            state.entryToDelete = null;
-            renderApp();
-        });
-    });
+            <footer className="tab-bar" role="tablist">
+                <button
+                    className={`tab-button ${activeTab === 'freelancing' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('freelancing')}
+                    role="tab"
+                    aria-controls="freelancing-panel"
+                    aria-selected={activeTab === 'freelancing'}
+                    id="freelancing-tab"
+                >
+                    Freelancing
+                </button>
+                <button
+                    className={`tab-button ${activeTab === 'home' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('home')}
+                    role="tab"
+                    aria-controls="home-panel"
+                    aria-selected={activeTab === 'home'}
+                    id="home-tab"
+                    aria-label="Home"
+                >
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                </button>
+                <button
+                    className={`tab-button ${activeTab === 'selling' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('selling')}
+                    role="tab"
+                    aria-controls="selling-panel"
+                    aria-selected={activeTab === 'selling'}
+                    id="selling-tab"
+                >
+                    Selling
+                </button>
+            </footer>
+        </div>
+    );
 };
 
-// --- Event Handlers for Global Actions ---
-const handleAddIncome = (type) => {
-    const inputAmount = type === 'freelancing' ? state.freelancingInput : state.sellingInput;
-    const selectedDate = type === 'freelancing' ? state.freelancingDateInput : state.sellingDateInput;
-    const amount = parseFloat(inputAmount);
-
-    if (isNaN(amount) || amount <= 0) {
-        alert('Please enter a valid positive number for income.');
-        return;
-    }
-    if (!selectedDate) {
-        alert('Please select a date.');
-        return;
-    }
-
-    const newEntry = { id: Date.now().toString() + Math.random().toString(36).substring(2), amount, date: new Date(selectedDate).toISOString(), type };
-
-    if (type === 'freelancing') {
-        state.freelancingHistory.push(newEntry);
-        state.freelancingInput = '';
-        state.freelancingDateInput = new Date().toISOString().substring(0, 10);
-    } else { // type === 'selling'
-        state.sellingHistory.push(newEntry);
-        state.sellingInput = '';
-        state.sellingDateInput = new Date().toISOString().substring(0, 10);
-    }
-    saveState();
-    renderApp();
-};
-
-const handleEditHistoryEntry = (id, newAmount, type) => {
-    const updateHistory = (history) => 
-        history.map(entry =>
-            entry.id === id ? { ...entry, amount: newAmount } : entry
-        );
-
-    if (type === 'freelancing' || type === 'Freelancing') { 
-        state.freelancingHistory = updateHistory(state.freelancingHistory);
-    } else if (type === 'selling' || type === 'Selling') { 
-        state.sellingHistory = updateHistory(state.sellingHistory);
-    }
-    saveState();
-    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
-};
-
-const handleDeleteHistoryEntry = (id, type) => {
-    if (type === 'freelancing' || type === 'Freelancing') {
-        state.freelancingHistory = state.freelancingHistory.filter(entry => entry.id !== id);
-    } else if (type === 'selling' || type === 'Selling') {
-        state.sellingHistory = state.sellingHistory.filter(entry => entry.id !== id);
-    }
-    saveState();
-    // No explicit renderApp() here, as renderHistoryModal will call it upon confirmation
-};
-
-
-// --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-    loadState();
-
-    const today = new Date();
-    state.currentDate = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-    countdownInterval = setInterval(() => {
-        const newCountdown = calculateTimeRemaining(targetDate);
-        // Only trigger a full re-render if the "passed" status changes or if the countdown UI needs to be updated.
-        // For individual digit updates, we can directly update the DOM if elements exist.
-        
-        // This check prevents full re-renders every second if only digits change.
-        // It focuses on updating only the relevant DOM elements.
-        if (state.activeTab === 'home' && !newCountdown.passed) {
-            const daysEl = document.querySelector('.countdown-item .days-value-color');
-            const hoursEl = document.querySelector('.countdown-item .countdown-value:not(.days-value-color)');
-            const minutesEl = document.querySelector('.countdown-item:nth-child(3) .countdown-value');
-            const secondsEl = document.querySelector('.countdown-item:nth-child(4) .countdown-value');
-
-            if (daysEl && daysEl.textContent !== newCountdown.days) daysEl.textContent = newCountdown.days;
-            if (hoursEl && hoursEl.textContent !== newCountdown.hours) hoursEl.textContent = newCountdown.hours;
-            if (minutesEl && minutesEl.textContent !== newCountdown.minutes) minutesEl.textContent = newCountdown.minutes;
-            if (secondsEl && secondsEl.textContent !== newCountdown.seconds) secondsEl.textContent = newCountdown.seconds;
-        }
-
-        if (newCountdown.passed !== state.countdown.passed) {
-            state.countdown = newCountdown;
-            clearInterval(countdownInterval);
-            renderApp(); // Full re-render to show "Goal date passed!" message
-        } else {
-            state.countdown = newCountdown; // Update state even if not re-rendering fully
-        }
-    }, 1000);
-
-    renderApp(); // Initial render
-});
+const container = document.getElementById('root');
+if (container) {
+    createRoot(container).render(<Project10CrApp />);
+}
