@@ -1,4 +1,3 @@
-
 // Global state object
 const state = {
     activeTab: 'home',
@@ -16,7 +15,7 @@ const state = {
     showOverallHistory: false,
     editingId: null, // For HistoryModal
     editingAmount: '', // For HistoryModal
-    activeRowForActions: null, // For HistoryModal long-press
+    activeRowForActions: null, // For HistoryModal long-press to show/hide actions
     longPressTimer: null, // For HistoryModal long-press - store timer ID here
     showDeleteConfirmation: false, // For HistoryModal
     entryToDelete: null, // For HistoryModal
@@ -153,7 +152,6 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <th>Date</th>
                             ${showTypeColumn ? '<th>Type</th>' : ''}
                             <th>Amount</th>
-                            <th style="width: 120px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -163,11 +161,12 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                                 data-type="${entry.type}"
                                 tabindex="0"
                                 role="row"
+                                aria-label="Entry of ${formatCurrency(entry.amount)} on ${formatEntryDate(entry.date)} ${showTypeColumn ? `for ${entry.type}` : ''}"
                             >
                                 <td>${formatEntryDate(entry.date)}</td>
                                 ${showTypeColumn ? `<td>${entry.type}</td>` : ''}
-                                ${state.editingId === entry.id ? `
-                                    <td>
+                                <td class="amount-cell" style="position: relative;">
+                                    ${state.editingId === entry.id ? `
                                         <input
                                             type="number"
                                             class="history-edit-input"
@@ -176,18 +175,18 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                                             aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}"
                                             data-id="${entry.id}"
                                         />
-                                    </td>
-                                    <td class="history-action-buttons visible">
-                                        <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
-                                        <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
-                                    </td>
-                                ` : `
-                                    <td>${formatCurrency(entry.amount)}</td>
-                                    <td class="history-action-buttons ${state.activeRowForActions === entry.id ? 'visible' : ''}">
-                                        <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
-                                        <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
-                                    </td>
-                                `}
+                                        <div class="history-action-buttons-edit">
+                                            <button class="save-btn" data-id="${entry.id}" aria-label="Save edited amount">Save</button>
+                                            <button class="cancel-edit-btn" data-id="${entry.id}" aria-label="Cancel editing">Cancel</button>
+                                        </div>
+                                    ` : `
+                                        <span class="amount-display ${state.activeRowForActions === entry.id ? 'hidden' : ''}">${formatCurrency(entry.amount)}</span>
+                                        <div class="history-action-buttons ${state.activeRowForActions === entry.id ? 'visible' : ''}">
+                                            <button class="edit-btn" data-id="${entry.id}" aria-label="Edit amount for entry on ${formatEntryDate(entry.date)}">Edit</button>
+                                            <button class="delete-btn" data-id="${entry.id}" aria-label="Delete entry on ${formatEntryDate(entry.date)}">Delete</button>
+                                        </div>
+                                    `}
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -221,12 +220,23 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
         const entryType = row.dataset.type;
         const entry = history.find(e => e.id === entryId);
 
+        let activeTouchIdentifier = null; // To track a specific touch for long press
+
         const handleLongPressStart = (event) => {
             state.longPressHandled = false;
             if (event.type === 'touchstart') {
-                event.preventDefault(); // Prevent scroll/zoom
+                event.preventDefault(); // Prevent default browser behavior (e.g., scrolling, zoom)
+                // Only consider the first touch for long press
+                if (event.touches.length > 0) {
+                    activeTouchIdentifier = event.touches[0].identifier;
+                } else {
+                    return; // No touches to process
+                }
+            } else if (event.type === 'mousedown') {
+                // For mouse, ensure only primary button (left click)
+                if (event.button !== 0) return;
             }
-
+            
             // Clear any existing timer to prevent multiple triggers
             if (state.longPressTimer) {
                 clearTimeout(state.longPressTimer);
@@ -244,10 +254,28 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                 clearTimeout(state.longPressTimer);
                 state.longPressTimer = null;
             }
-            
-            // If it was a short press (longPressHandled is false),
-            // or if we're not currently editing this row, hide actions.
-            // But only hide if the active row *is* this row.
+
+            // For touch events, only process if it's the tracked touch ending
+            if (event.type.startsWith('touch')) {
+                let touchEnded = false;
+                if (activeTouchIdentifier !== null) {
+                    for (let i = 0; i < event.changedTouches.length; i++) {
+                        if (event.changedTouches[i].identifier === activeTouchIdentifier) {
+                            touchEnded = true;
+                            break;
+                        }
+                    }
+                }
+                if (!touchEnded && activeTouchIdentifier !== null && event.type === 'touchend' && event.touches.length > 0) {
+                    // If the tracked touch is still active, but another touch ended
+                    // or if the tracked touch is gone and this is a subsequent touchend, ignore.
+                    return;
+                }
+                activeTouchIdentifier = null; // Reset tracked touch
+            }
+
+            // If it was a short press (longPressHandled is false), and we are not editing,
+            // or if we're not currently editing this row, hide actions for *this* row.
             if (!state.longPressHandled && state.activeRowForActions === entryId && state.editingId !== entryId) {
                 state.activeRowForActions = null;
                 renderApp();
@@ -269,29 +297,23 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
         addEndListeners(row);
 
         // Hide actions if clicking another row or outside the modal
-        const dismissActions = (event) => {
-            if (!modalDiv.contains(event.target) || (!row.contains(event.target) && state.activeRowForActions === entryId && state.editingId !== entryId)) {
-                if (state.activeRowForActions === entryId) {
-                    state.activeRowForActions = null;
-                    renderApp();
-                }
+        // This is a broader dismiss, handled by backdrop click now for the whole modal,
+        // but for individual rows, we need to ensure actions hide if focus moves.
+        row.addEventListener('focusout', (event) => {
+            // Check if focus is moving outside the row, but within the modal content
+            if (!row.contains(event.relatedTarget) && state.activeRowForActions === entryId && state.editingId !== entryId) {
+                // Delay to allow focus to shift to buttons if clicked
+                setTimeout(() => {
+                    if (!row.contains(document.activeElement)) { // If focus is truly outside the row
+                        state.activeRowForActions = null;
+                        renderApp();
+                    }
+                }, 50);
             }
-        };
-
-        // Delay attaching this general dismiss listener
-        // to avoid immediate dismissal on the same click that opened the modal.
-        setTimeout(() => {
-            document.addEventListener('mousedown', dismissActions);
-            document.addEventListener('touchstart', dismissActions);
-            // Cleanup on modal close
-            modalDiv.querySelector('.modal-close-button').addEventListener('click', () => {
-                document.removeEventListener('mousedown', dismissActions);
-                document.removeEventListener('touchstart', dismissActions);
-            }, { once: true });
-        }, 0);
+        });
 
 
-        if (state.editingId === entryId) {
+        if (state.editingId === entry.id) {
             const input = row.querySelector('.history-edit-input');
             if (input) {
                 input.addEventListener('input', (e) => { state.editingAmount = e.target.value; });
@@ -309,14 +331,14 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                 onEditEntry(entryId, newAmount, effectiveType);
                 state.editingId = null;
                 state.editingAmount = '';
-                state.activeRowForActions = null;
+                state.activeRowForActions = null; // Hide actions after save
                 renderApp(); // Re-render to update history and close edit mode
             });
             const cancelEditBtn = row.querySelector('.cancel-edit-btn');
             if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => {
                 state.editingId = null;
                 state.editingAmount = '';
-                state.activeRowForActions = null;
+                state.activeRowForActions = null; // Hide actions after cancel
                 renderApp(); // Re-render to close edit mode
             });
         } else {

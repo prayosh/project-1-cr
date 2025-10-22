@@ -44,7 +44,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+            font-family: -apple-system, BlinkMacMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
             background-color: var(--bg-dark);
             color: var(--text-light);
             min-height: 100vh;
@@ -676,22 +676,61 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* Modified: Direct button visibility for actions in table cell */
-        .history-action-buttons {
+        /* New styles for amount cell and action buttons */
+        td.amount-cell {
+            position: relative;
+            text-align: right; /* Default alignment for currency */
+            padding: 0; /* Remove padding from td to let inner elements handle it */
+        }
+
+        td.amount-cell .amount-display {
+            display: block; /* Ensures it takes up space */
+            padding: 12px 15px; /* Restore original padding for amount */
+            transition: opacity 0.2s ease-in-out;
+        }
+        td.amount-cell .amount-display.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        td.amount-cell .history-action-buttons {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
-            gap: 8px;
-            justify-content: flex-end; /* Align to the right */
+            justify-content: center; /* Center buttons horizontally */
+            align-items: center; /* Center buttons vertically */
+            gap: 8px; /* Space between buttons */
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.2s ease-in-out;
+            padding: 5px; /* Small padding inside the cell for buttons */
+            box-sizing: border-box; /* Include padding in width/height */
         }
         
-        .history-action-buttons.visible {
+        td.amount-cell .history-action-buttons.visible {
             opacity: 1;
             pointer-events: auto;
         }
 
-        .history-action-buttons button {
+        /* When in editing mode, the input and buttons are direct children, so remove absolute positioning for buttons */
+        td.amount-cell .history-edit-input {
+            width: 100%;
+            text-align: center;
+            padding: 5px 8px;
+            box-sizing: border-box;
+        }
+        td.amount-cell .history-action-buttons-edit { /* New class for edit mode buttons container */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px; /* Space between input and buttons */
+            padding: 0 5px; /* Adjust padding for buttons */
+        }
+        td.amount-cell .history-action-buttons-edit button {
             padding: 6px 10px;
             border-radius: var(--border-radius);
             font-size: 0.85em;
@@ -701,43 +740,6 @@
             border: none;
             flex-shrink: 0;
             color: var(--bg-dark); /* Default button text color */
-        }
-
-        .history-action-buttons .edit-btn {
-            background-color: var(--edit-button-bg); /* Use accent orange for edit */
-            color: var(--bg-dark);
-        }
-        .history-action-buttons .edit-btn:hover {
-            background-color: #ff9800; /* Lighter orange on hover */
-        }
-
-        .history-action-buttons .delete-btn {
-            background-color: var(--delete-button-bg); /* Red for delete */
-            color: var(--text-light);
-        }
-        .history-action-buttons .delete-btn:hover {
-            background-color: var(--delete-button-hover-bg);
-        }
-
-        .history-action-buttons .save-btn {
-            background-color: var(--accent-green);
-            color: var(--bg-dark);
-        }
-        .history-action-buttons .save-btn:hover {
-            background-color: #4ac25d;
-        }
-
-        .history-action-buttons .cancel-btn {
-            background-color: var(--button-bg-secondary);
-            color: var(--text-light);
-        }
-        .history-action-buttons .cancel-edit-btn:hover { /* Use specific class for cancel edit */
-            background-color: #5a626e;
-        }
-        /* Ensure cancel-edit-btn gets the same styling as cancel-btn */
-        .history-action-buttons .cancel-edit-btn {
-            background-color: var(--button-bg-secondary);
-            color: var(--text-light);
         }
 
 
@@ -759,6 +761,43 @@
             margin: 0;
         }
 
+
+        /* Action button specific styles (retained) */
+        .history-action-buttons .edit-btn,
+        .history-action-buttons-edit .save-btn {
+            background-color: var(--edit-button-bg); /* Use accent orange for edit */
+            color: var(--bg-dark);
+        }
+        .history-action-buttons .edit-btn:hover,
+        .history-action-buttons-edit .save-btn:hover {
+            background-color: #ff9800; /* Lighter orange on hover */
+        }
+
+        .history-action-buttons .delete-btn {
+            background-color: var(--delete-button-bg); /* Red for delete */
+            color: var(--text-light);
+        }
+        .history-action-buttons .delete-btn:hover {
+            background-color: var(--delete-button-hover-bg);
+        }
+        
+        .history-action-buttons-edit .cancel-edit-btn,
+        .modal-content .cancel-btn { /* For confirmation modal */
+            background-color: var(--button-bg-secondary);
+            color: var(--text-light);
+        }
+        .history-action-buttons-edit .cancel-edit-btn:hover,
+        .modal-content .cancel-btn:hover {
+            background-color: #5a626e;
+        }
+        /* Specific delete button style for confirmation modal */
+        .modal-content .delete-btn {
+            background-color: var(--delete-button-bg);
+            color: var(--text-light);
+        }
+        .modal-content .delete-btn:hover {
+            background-color: var(--delete-button-hover-bg);
+        }
 
         /* Responsive adjustments */
         @media (max-width: 479px) {
@@ -815,9 +854,10 @@
                 font-size: 0.85em;
             }
             .history-edit-input {
-                width: 60px; /* Even smaller for mobile tables */
+                width: 100%; /* Fill width in mobile edit mode */
+                font-size: 0.9em;
             }
-            .history-action-buttons button {
+            td.amount-cell .history-action-buttons-edit button {
                 padding: 4px 6px;
                 font-size: 0.75em;
             }
