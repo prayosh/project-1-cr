@@ -88,7 +88,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ title, history, onClose, on
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingAmount, setEditingAmount] = useState<string>('');
     const [activeRowForActions, setActiveRowForActions] = useState<string | null>(null); // To show edit/delete
-    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    // Fix: Changed NodeJS.Timeout to number as setTimeout in browser returns a number.
+    const longPressTimer = useRef<number | null>(null);
     
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<boolean>(false);
     const [entryToDelete, setEntryToDelete] = useState<HistoryEntry | null>(null);

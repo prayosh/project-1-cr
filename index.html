@@ -7,8 +7,8 @@
     <!-- Google Fonts for app title -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-    <!-- Inlined CSS from index.css -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Sacramento&display=swap" rel="stylesheet">
+    <!-- Inlined CSS -->
     <style>
         /* Basic Reset */
         * {
@@ -89,7 +89,7 @@
         }
 
         .app-title {
-            font-family: 'Playfair Display', serif; /* Royal-looking font */
+            font-family: 'Sacramento', cursive; /* Royal-looking font */
             font-size: clamp(1.8rem, 5vw, 2.8rem); /* Responsive font size */
             margin-bottom: 8px;
             color: var(--accent-blue);
@@ -877,16 +877,11 @@
             }
         }
     </style>
-    <!-- Babel Standalone for in-browser JSX compilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
   }
 }
 </script>
@@ -894,6 +889,6 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module" src="index.tsx"></script>
+    <script src="index.js"></script>
 </body>
 </html>
