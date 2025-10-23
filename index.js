@@ -49,7 +49,7 @@ const calculateTimeRemaining = (targetDate) => {
 
     const days = Math.floor(difference / (1000 * 60 * 60 * 24));
     const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+    const minutes = Math.floor((difference % (1000 * 60)) / (1000 * 60));
     const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
     return {
@@ -461,7 +461,7 @@ const renderApp = () => {
     // Header
     appContainer.innerHTML += `
         <header class="app-header">
-            <h1 class="app-title">Project 10 Cr</h1>
+            <h1 class="app-title">Project 1 Cr</h1>
             <p class="current-date">${state.currentDate}</p>
         </header>
     `;
@@ -476,7 +476,7 @@ const renderApp = () => {
     if (state.activeTab === 'home') {
         mainContent.innerHTML += `
             <div class="tab-content" role="tabpanel" id="home-panel" aria-labelledby="home-tab">
-                ${renderProgressBar(freelancingIncome + sellingIncome, 100000000, 'Overall')}
+                ${renderProgressBar(freelancingIncome + sellingIncome, 10000000, 'Overall')}
                 <div class="countdown-card" aria-live="polite">
                     <h2>Goal Deadline</h2>
                     ${state.countdown.passed ? `
@@ -543,7 +543,7 @@ const renderApp = () => {
     } else if (state.activeTab === 'freelancing') {
         mainContent.innerHTML += `
             <div class="tab-content" role="tabpanel" id="freelancing-panel" aria-labelledby="freelancing-tab">
-                ${renderProgressBar(freelancingIncome, 50000000, 'Freelancing')}
+                ${renderProgressBar(freelancingIncome, 5000000, 'Freelancing')}
                 <div class="input-card">
                     <div class="input-row">
                         <label for="freelancing-income-input" class="sr-only">Enter income amount for freelancing</label>
@@ -625,7 +625,7 @@ const renderApp = () => {
     } else if (state.activeTab === 'selling') {
         mainContent.innerHTML += `
             <div class="tab-content" role="tabpanel" id="selling-panel" aria-labelledby="selling-tab">
-                ${renderProgressBar(sellingIncome, 50000000, 'Selling')}
+                ${renderProgressBar(sellingIncome, 5000000, 'Selling')}
                 <div class="input-card">
                     <div class="input-row">
                         <label for="selling-income-input" class="sr-only">Enter income amount for selling</label>
