@@ -159,6 +159,7 @@ const renderHistoryModal = (title, history, onClose, onEditEntry, onDeleteEntry,
                             <tr 
                                 data-id="${entry.id}" 
                                 data-type="${entry.type}"
+                                class="${showTypeColumn ? `history-entry-${entry.type.toLowerCase()}` : ''}"
                                 tabindex="0"
                                 role="row"
                                 aria-label="Entry of ${formatCurrency(entry.amount)} on ${formatEntryDate(entry.date)} ${showTypeColumn ? `for ${entry.type}` : ''}"
