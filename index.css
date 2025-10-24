@@ -1,4 +1,5 @@
 
+
 /* Basic Reset */
         * {
             box-sizing: border-box;
@@ -317,6 +318,15 @@
             border-color: var(--accent-blue);
             box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.4);
             outline: none;
+        }
+
+        .dropdown-select:invalid {
+            color: var(--text-secondary);
+        }
+
+        .dropdown-select option {
+            color: var(--text-light);
+            background-color: var(--bg-dark);
         }
 
         /* Textarea specific styles */

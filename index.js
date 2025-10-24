@@ -1,4 +1,5 @@
 
+
 // Global state object
 const state = {
     activeTab: 'home',
@@ -113,12 +114,6 @@ const loadState = () => {
     state.freelancingTypeOptions = loadOptions('freelancingTypeOptions', state.freelancingTypeOptions);
     state.sellingSourceOptions = loadOptions('sellingSourceOptions', state.sellingSourceOptions);
     state.sellingTypeOptions = loadOptions('sellingTypeOptions', state.sellingTypeOptions);
-
-    // Set initial default selections for inputs if not already set or not present in options
-    state.freelancingSourceInput = state.freelancingSourceOptions[0] || '';
-    state.freelancingTypeInput = state.freelancingTypeOptions[0] || '';
-    state.sellingSourceInput = state.sellingSourceOptions[0] || '';
-    state.sellingTypeInput = state.sellingTypeOptions[0] || '';
 };
 
 const saveState = () => {
@@ -817,13 +812,15 @@ const renderApp = () => {
                     <div class="input-row">
                         <div class="input-field-group">
                             <label for="freelancing-source-select" class="sr-only">Source of freelancing income</label>
-                            <select id="freelancing-source-select" class="dropdown-select" aria-label="Select income source">
+                            <select id="freelancing-source-select" class="dropdown-select" aria-label="Select income source" required>
+                                <option value="" disabled ${state.freelancingSourceInput === '' ? 'selected' : ''}>Select Source</option>
                                 ${state.freelancingSourceOptions.map(opt => `<option value="${opt}" ${state.freelancingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
                         </div>
                         <div class="input-field-group">
                             <label for="freelancing-type-select" class="sr-only">Type of freelancing work</label>
-                            <select id="freelancing-type-select" class="dropdown-select" aria-label="Select work type">
+                            <select id="freelancing-type-select" class="dropdown-select" aria-label="Select work type" required>
+                                <option value="" disabled ${state.freelancingTypeInput === '' ? 'selected' : ''}>Select Type</option>
                                 ${state.freelancingTypeOptions.map(opt => `<option value="${opt}" ${state.freelancingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
                         </div>
@@ -950,13 +947,15 @@ const renderApp = () => {
                     <div class="input-row">
                         <div class="input-field-group">
                             <label for="selling-source-select" class="sr-only">Source of selling income</label>
-                            <select id="selling-source-select" class="dropdown-select" aria-label="Select income source">
+                            <select id="selling-source-select" class="dropdown-select" aria-label="Select income source" required>
+                                <option value="" disabled ${state.sellingSourceInput === '' ? 'selected' : ''}>Select Source</option>
                                 ${state.sellingSourceOptions.map(opt => `<option value="${opt}" ${state.sellingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
                         </div>
                         <div class="input-field-group">
                             <label for="selling-type-select" class="sr-only">Type of selling product</label>
-                            <select id="selling-type-select" class="dropdown-select" aria-label="Select product type">
+                            <select id="selling-type-select" class="dropdown-select" aria-label="Select product type" required>
+                                <option value="" disabled ${state.sellingTypeInput === '' ? 'selected' : ''}>Select Type</option>
                                 ${state.sellingTypeOptions.map(opt => `<option value="${opt}" ${state.sellingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
                         </div>
@@ -1161,15 +1160,15 @@ const handleAddIncome = (type) => {
         state.freelancingHistory.push(newEntry);
         state.freelancingInput = '';
         state.freelancingDateInput = new Date().toISOString().substring(0, 10);
-        state.freelancingSourceInput = state.freelancingSourceOptions[0] || '';
-        state.freelancingTypeInput = state.freelancingTypeOptions[0] || '';
+        state.freelancingSourceInput = '';
+        state.freelancingTypeInput = '';
         state.freelancingNoteInput = '';
     } else { // type === 'selling'
         state.sellingHistory.push(newEntry);
         state.sellingInput = '';
         state.sellingDateInput = new Date().toISOString().substring(0, 10);
-        state.sellingSourceInput = state.sellingSourceOptions[0] || '';
-        state.sellingTypeInput = state.sellingTypeOptions[0] || '';
+        state.sellingSourceInput = '';
+        state.sellingTypeInput = '';
         state.sellingNoteInput = '';
     }
     saveState();
@@ -1237,10 +1236,10 @@ const handleDeleteOption = (valueToDelete, optionsKey) => {
         state[optionsKey] = optionsArray.filter((opt) => opt !== valueToDelete);
         saveState();
         // Adjust default input if deleted option was selected
-        if (optionsKey === 'freelancingSourceOptions' && state.freelancingSourceInput === valueToDelete) state.freelancingSourceInput = state[optionsKey][0] || '';
-        if (optionsKey === 'freelancingTypeOptions' && state.freelancingTypeInput === valueToDelete) state.freelancingTypeInput = state[optionsKey][0] || '';
-        if (optionsKey === 'sellingSourceOptions' && state.sellingSourceInput === valueToDelete) state.sellingSourceInput = state[optionsKey][0] || '';
-        if (optionsKey === 'sellingTypeOptions' && state.sellingTypeInput === valueToDelete) state.sellingTypeInput = state[optionsKey][0] || '';
+        if (optionsKey === 'freelancingSourceOptions' && state.freelancingSourceInput === valueToDelete) state.freelancingSourceInput = '';
+        if (optionsKey === 'freelancingTypeOptions' && state.freelancingTypeInput === valueToDelete) state.freelancingTypeInput = '';
+        if (optionsKey === 'sellingSourceOptions' && state.sellingSourceInput === valueToDelete) state.sellingSourceInput = '';
+        if (optionsKey === 'sellingTypeOptions' && state.sellingTypeInput === valueToDelete) state.sellingTypeInput = '';
     } else {
         alert('Cannot delete the last option. At least one option must remain.');
     }
