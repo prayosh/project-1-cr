@@ -300,9 +300,6 @@
             -webkit-appearance: none; /* Remove default arrow */
             -moz-appearance: none;
             appearance: none;
-            /* background-color: var(--input-bg); */ /* Handled by input-wrapper */
-            /* border: 1px solid var(--border-color); */ /* Handled by input-wrapper */
-            /* border-radius: var(--border-radius); */ /* Handled by input-wrapper */
             padding: 12px 15px;
             color: var(--text-light);
             font-size: 1em;
@@ -332,9 +329,6 @@
 
         /* Textarea specific styles */
         .note-textarea {
-            /* background-color: var(--input-bg); */ /* Handled by input-wrapper */
-            /* border: 1px solid var(--border-color); */ /* Handled by input-wrapper */
-            /* border-radius: var(--border-radius); */ /* Handled by input-wrapper */
             padding: 12px 15px;
             color: var(--text-light);
             font-size: 1em;
@@ -847,10 +841,11 @@
             text-align: right;
         }
 
-
-        .history-table th {
+        /* Styling for history table headings */
+        .history-table-header {
+            font-size: clamp(1rem, 3vw, 1.25rem); /* Bigger font size */
+            color: var(--accent-blue); /* Different color */
             background-color: var(--table-header-bg);
-            color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -874,12 +869,14 @@
         /* These should override generic row colors for combined history */
         .history-table tr.history-entry-freelancing {
             background-color: var(--freelancing-row-bg); /* Darker blue-grey for freelancing */
+            color: var(--accent-blue); /* Distinct color for freelancing rows */
         }
         .history-table tr.history-entry-freelancing:nth-child(even) { /* Keep specific color for even rows */
             background-color: var(--freelancing-row-bg);
         }
         .history-table tr.history-entry-selling {
             background-color: var(--selling-row-bg); /* Darker purple-grey for selling */
+            color: var(--accent-orange); /* Distinct color for selling rows */
         }
         .history-table tr.history-entry-selling:nth-child(even) { /* Keep specific color for even rows */
             background-color: var(--selling-row-bg);
@@ -887,6 +884,12 @@
         .history-table tr.history-entry-freelancing:hover,
         .history-table tr.history-entry-selling:hover {
             background-color: #2a313c; /* Still highlight on hover */
+        }
+
+        /* Amount column specific text color */
+        .amount-value-text {
+            color: var(--accent-green);
+            font-weight: 500;
         }
 
 
@@ -1191,4 +1194,3 @@
                 font-size: 0.95em;
             }
         }
-    
