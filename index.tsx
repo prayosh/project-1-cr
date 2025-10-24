@@ -39,7 +39,8 @@ const state = {
 };
 
 const targetDate = new Date('2026-12-31T23:59:59');
-let countdownInterval: NodeJS.Timeout | null = null; // Initialize countdownInterval
+// Fix: Changed NodeJS.Timeout to number for browser compatibility.
+let countdownInterval: number | null = null; // Initialize countdownInterval
 
 const LONG_PRESS_DELAY = 500; // milliseconds
 
@@ -143,8 +144,7 @@ const renderProgressBar = (current: number, target: number, label: string) => {
                 <span class="target-amount-line">
                     Target: <span class="target-amount">${formattedTarget}</span>
                     <span class="percentage-value">(${percentage.toFixed(2)}%)</span>
-                </span>
-            </p>
+                </p>
         </div>
     `;
 };
@@ -300,11 +300,18 @@ const renderHistoryScreen = (title: string, history: any[], onClose: () => void,
     historyScreenDiv.setAttribute('role', 'main');
     historyScreenDiv.setAttribute('aria-labelledby', 'history-screen-title');
 
-    let historyTableHtml = '';
+    // Create header
+    const headerHtml = `
+        <header class="history-screen-header">
+            <h2 id="history-screen-title">${title} History</h2>
+        </header>
+    `;
+
+    let tableContentHtml = '';
     if (history.length === 0) {
-        historyTableHtml = '<p style="text-align:center; padding: 20px;">No entries yet.</p>';
+        tableContentHtml = '<p style="text-align:center; padding: 20px;">No entries yet.</p>';
     } else {
-        historyTableHtml = `
+        tableContentHtml = `
             <div class="table-container">
                 <table class="history-table">
                     <thead>
@@ -364,6 +371,15 @@ const renderHistoryScreen = (title: string, history: any[], onClose: () => void,
         `;
     }
 
+    const fabButtonHtml = `
+        <button class="fab-button history-home-fab" aria-label="Go to Home Screen">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+        </button>
+    `;
+
+    historyScreenDiv.innerHTML = headerHtml + `<main class="history-screen-content">${tableContentHtml}</main>` + fabButtonHtml;
     document.getElementById('root')?.appendChild(historyScreenDiv); // Append to root directly
 
     historyScreenDiv.querySelector('.history-home-fab')?.addEventListener('click', () => {
@@ -379,10 +395,10 @@ const renderHistoryScreen = (title: string, history: any[], onClose: () => void,
 
     // Event delegation for table rows and buttons
     historyScreenDiv.querySelectorAll('tbody tr').forEach(rowElement => {
-        const row = rowElement;
+        const row = rowElement as HTMLElement; // Cast to HTMLElement
         // Fix: Added type assertion for rowElement.dataset
-        const entryId = (rowElement as HTMLElement).dataset.id;
-        const entryType = (rowElement as HTMLElement).dataset.type;
+        const entryId = row.dataset.id;
+        const entryType = row.dataset.type;
         const entry = history.find(e => e.id === entryId);
 
         let activeTouchIdentifier: number | null = null;
@@ -452,7 +468,7 @@ const renderHistoryScreen = (title: string, history: any[], onClose: () => void,
 
         row.addEventListener('mousedown', handleLongPressStart);
         row.addEventListener('touchstart', handleLongPressStart, { passive: false });
-        addEndListeners(row as HTMLElement); // Cast row to HTMLElement
+        addEndListeners(row); // Cast row to HTMLElement
 
         row.addEventListener('focusout', (event) => {
             setTimeout(() => {
@@ -614,6 +630,46 @@ const renderTabMenuOverlay = (type: string, menuTitle: string, menuItems: { clas
     }
 };
 
+// New helper function for mini history table
+const renderMiniHistoryTable = (history: any[], title: string, showCategory: boolean) => {
+    // Sort by date descending and take the first 5
+    const recentHistory = history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+    if (recentHistory.length === 0) {
+        return `<div class="mini-history-section"><h3>${title}</h3><p style="text-align:center; padding: 10px;">No recent entries.</p></div>`;
+    }
+
+    return `
+        <div class="mini-history-section">
+            <h3>${title}</h3>
+            <div class="table-container mini-table-container">
+                <table class="mini-history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            ${showCategory ? '<th>Category</th>' : ''}
+                            <th>Source</th>
+                            <th>Type</th>
+                            <th class="amount-header">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recentHistory.map(entry => `
+                            <tr>
+                                <td>${formatEntryDate(entry.date)}</td>
+                                ${showCategory ? `<td>${entry.type}</td>` : ''}
+                                <td>${entry.source}</td>
+                                <td>${entry.incomeType}</td>
+                                <td class="amount-cell amount-value-text">${formatCurrency(entry.amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+};
+
+
 const renderApp = () => {
     const root = document.getElementById('root');
     if (!root) return;
@@ -671,7 +727,7 @@ const renderApp = () => {
     if (state.showOptionManagementModal && state.editingOptionsFor) {
         let title = '';
         let options: string[] = [];
-        let optionsKey = '';
+        let optionsKey: keyof typeof state = 'freelancingSourceOptions'; // Default, will be overwritten
         const onAdd = handleAddOption;
         const onEdit = handleEditOption;
         const onDelete = handleDeleteOption;
@@ -785,7 +841,26 @@ const renderApp = () => {
                         state.showHomeMenu = false;
                         renderApp();
                     }
-                }]
+                },
+                {
+                    className: 'export-json-btn',
+                    ariaLabel: 'Export all data as JSON',
+                    text: 'Export Data (JSON)',
+                    onClick: handleExportDataJson
+                },
+                {
+                    className: 'import-json-btn',
+                    ariaLabel: 'Import data from JSON file',
+                    text: 'Import Data (JSON)',
+                    onClick: handleImportDataJson
+                },
+                {
+                    className: 'export-excel-btn',
+                    ariaLabel: 'Export all data as Excel (CSV)',
+                    text: 'Export Data (CSV)',
+                    onClick: handleExportDataCsv
+                }
+                ]
             );
         }
 
@@ -793,6 +868,11 @@ const renderApp = () => {
         mainContent.innerHTML += `
             <div class="tab-content" role="tabpanel" id="freelancing-panel" aria-labelledby="freelancing-tab">
                 ${renderProgressBar(freelancingIncome, 5000000, 'Freelancing')}
+                ${renderMiniHistoryTable(
+                    state.freelancingHistory,
+                    'Recent Freelancing Incomes',
+                    false // No category column for specific tab history
+                )}
                 <div class="input-card">
                     <div class="input-row">
                         <label for="freelancing-income-input" class="sr-only">Enter income amount for freelancing</label>
@@ -935,6 +1015,11 @@ const renderApp = () => {
         mainContent.innerHTML += `
             <div class="tab-content" role="tabpanel" id="selling-panel" aria-labelledby="selling-tab">
                 ${renderProgressBar(sellingIncome, 5000000, 'Selling')}
+                ${renderMiniHistoryTable(
+                    state.sellingHistory,
+                    'Recent Selling Incomes',
+                    false // No category column for specific tab history
+                )}
                 <div class="input-card">
                     <div class="input-row">
                         <label for="selling-income-input" class="sr-only">Enter income amount for selling</label>
@@ -1231,7 +1316,8 @@ const handleAddOption = (newValue: string, optionsKey: keyof typeof state) => {
     let optionsArray = state[optionsKey] as string[];
     if (!optionsArray.includes(newValue)) {
         optionsArray.push(newValue);
-        state[optionsKey] = [...optionsArray].sort() as any; // Keep sorted
+        // Fix: Explicitly cast the assignment to string[]
+        (state[optionsKey] as string[]) = [...optionsArray].sort(); // Keep sorted
         saveState();
     }
 };
@@ -1242,7 +1328,8 @@ const handleEditOption = (originalValue: string, newValue: string, optionsKey: k
         const index = optionsArray.indexOf(originalValue);
         if (index > -1) {
             optionsArray[index] = newValue;
-            state[optionsKey] = [...optionsArray].sort() as any; // Keep sorted
+            // Fix: Explicitly cast the assignment to string[]
+            (state[optionsKey] as string[]) = [...optionsArray].sort(); // Keep sorted
             saveState();
             // Update any input fields that might be pre-selected with the old value
             if (optionsKey === 'freelancingSourceOptions' && state.freelancingSourceInput === originalValue) state.freelancingSourceInput = newValue;
@@ -1260,7 +1347,8 @@ const handleEditOption = (originalValue: string, newValue: string, optionsKey: k
 const handleDeleteOption = (valueToDelete: string, optionsKey: keyof typeof state) => {
     let optionsArray = state[optionsKey] as string[];
     if (optionsArray.length > 1) { // Prevent deleting last option
-        state[optionsKey] = optionsArray.filter((opt) => opt !== valueToDelete) as any;
+        // Fix: Explicitly cast the assignment to string[]
+        (state[optionsKey] as string[]) = optionsArray.filter((opt) => opt !== valueToDelete);
         saveState();
         // Adjust default input if deleted option was selected
         if (optionsKey === 'freelancingSourceOptions' && state.freelancingSourceInput === valueToDelete) state.freelancingSourceInput = '';
@@ -1270,6 +1358,126 @@ const handleDeleteOption = (valueToDelete: string, optionsKey: keyof typeof stat
     } else {
         alert('Cannot delete the last option. At least one option must remain.');
     }
+};
+
+// Helper to create download link
+const downloadFile = (data: string, filename: string, mimeType: string) => {
+    const blob = new Blob([data], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+const handleExportDataJson = () => {
+    const dataToExport = {
+        freelancingHistory: state.freelancingHistory,
+        sellingHistory: state.sellingHistory,
+        // Include options as well for a complete backup
+        freelancingSourceOptions: state.freelancingSourceOptions,
+        freelancingTypeOptions: state.freelancingTypeOptions,
+        sellingSourceOptions: state.sellingSourceOptions,
+        sellingTypeOptions: state.sellingTypeOptions,
+    };
+    const jsonString = JSON.stringify(dataToExport, null, 2);
+    downloadFile(jsonString, 'income_tracker_data.json', 'application/json');
+    state.showHomeMenu = false; // Close menu after action
+    renderApp();
+};
+
+const handleImportDataJson = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'application/json';
+    fileInput.style.display = 'none'; // Hide the input
+    document.body.appendChild(fileInput);
+
+    fileInput.addEventListener('change', (event) => {
+        const target = event.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonContent = e.target?.result as string;
+                    const importedData = JSON.parse(jsonContent);
+
+                    // Basic validation for the imported data structure
+                    if (
+                        Array.isArray(importedData.freelancingHistory) &&
+                        Array.isArray(importedData.sellingHistory) &&
+                        Array.isArray(importedData.freelancingSourceOptions) &&
+                        Array.isArray(importedData.freelancingTypeOptions) &&
+                        Array.isArray(importedData.sellingSourceOptions) &&
+                        Array.isArray(importedData.sellingTypeOptions)
+                    ) {
+                        if (confirm('Importing data will overwrite your current data. Are you sure?')) {
+                            state.freelancingHistory = importedData.freelancingHistory;
+                            state.sellingHistory = importedData.sellingHistory;
+                            state.freelancingSourceOptions = importedData.freelancingSourceOptions;
+                            state.freelancingTypeOptions = importedData.freelancingTypeOptions;
+                            state.sellingSourceOptions = importedData.sellingSourceOptions;
+                            state.sellingTypeOptions = importedData.sellingTypeOptions;
+                            saveState(); // Save imported data to localStorage
+                            alert('Data imported successfully!');
+                            state.showHomeMenu = false; // Close menu after action
+                            renderApp();
+                        }
+                    } else {
+                        alert('Invalid JSON file format. Please ensure it contains freelancingHistory, sellingHistory, and options arrays.');
+                    }
+                } catch (error: any) { // Catch potential parsing errors
+                    alert('Error parsing JSON file: ' + error.message);
+                } finally {
+                    document.body.removeChild(fileInput); // Clean up file input
+                }
+            };
+            reader.readAsText(file);
+        } else {
+            document.body.removeChild(fileInput); // Clean up file input if no file selected
+        }
+    });
+
+    fileInput.click(); // Programmatically click the hidden input
+};
+
+const handleExportDataCsv = () => {
+    const allHistory = [
+        ...state.freelancingHistory.map(entry => ({ ...entry, category: 'Freelancing' })),
+        ...state.sellingHistory.map(entry => ({ ...entry, category: 'Selling' })),
+    ];
+
+    if (allHistory.length === 0) {
+        alert('No data to export to Excel (CSV).');
+        state.showHomeMenu = false;
+        renderApp();
+        return;
+    }
+
+    // Define CSV header and map fields
+    const headers = ['Category', 'Date', 'Source', 'Type', 'Amount', 'Note'];
+    const csvRows = [
+        headers.join(','),
+        ...allHistory.map(entry =>
+            [
+                `"${entry.category}"`,
+                `"${formatEntryDate(entry.date)}"`,
+                `"${entry.source}"`,
+                `"${entry.incomeType}"`,
+                entry.amount,
+                `"${(entry.note as string).replace(/"/g, '""')}"` // Handle quotes in notes
+            ].join(',')
+        )
+    ];
+
+    const csvString = csvRows.join('\n');
+    downloadFile(csvString, 'income_tracker_data.csv', 'text/csv');
+    state.showHomeMenu = false; // Close menu after action
+    renderApp();
 };
 
 
