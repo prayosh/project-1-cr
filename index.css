@@ -65,7 +65,7 @@
         .app-container {
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
+            min-height: 10vh;
             width: 100%;
             max-width: 800px; /* Optional: Constrain overall width on very large screens for better readability */
             margin: 0 auto; /* Center the app container if max-width is set */
@@ -300,9 +300,9 @@
             -webkit-appearance: none; /* Remove default arrow */
             -moz-appearance: none;
             appearance: none;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
+            /* background-color: var(--input-bg); */ /* Handled by input-wrapper */
+            /* border: 1px solid var(--border-color); */ /* Handled by input-wrapper */
+            /* border-radius: var(--border-radius); */ /* Handled by input-wrapper */
             padding: 12px 15px;
             color: var(--text-light);
             font-size: 1em;
@@ -311,14 +311,15 @@
             width: 100%;
             background-image: url('data:image/svg+xml;utf8,<svg fill="%23c9d1d9" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
             background-repeat: no-repeat;
-            background-position: right 10px center;
+            background-position: right 10px center; /* Adjusted for input-wrapper */
             padding-right: 35px; /* Make space for custom arrow */
         }
-        .dropdown-select:focus {
+        /* Focus state is now handled by .input-wrapper:focus-within */
+        /* .dropdown-select:focus {
             border-color: var(--accent-blue);
             box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.4);
             outline: none;
-        }
+        } */
 
         .dropdown-select:invalid {
             color: var(--text-secondary);
@@ -331,9 +332,9 @@
 
         /* Textarea specific styles */
         .note-textarea {
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
+            /* background-color: var(--input-bg); */ /* Handled by input-wrapper */
+            /* border: 1px solid var(--border-color); */ /* Handled by input-wrapper */
+            /* border-radius: var(--border-radius); */ /* Handled by input-wrapper */
             padding: 12px 15px;
             color: var(--text-light);
             font-size: 1em;
@@ -342,11 +343,12 @@
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
             width: 100%;
         }
-        .note-textarea:focus {
+        /* Focus state is now handled by .input-wrapper:focus-within */
+        /* .note-textarea:focus {
             border-color: var(--accent-blue);
             box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.4);
             outline: none;
-        }
+        } */
 
 
         .input-card button {
@@ -1189,3 +1191,4 @@
                 font-size: 0.95em;
             }
         }
+    

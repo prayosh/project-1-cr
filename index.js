@@ -1,5 +1,4 @@
 
-
 // Global state object
 const state = {
     activeTab: 'home',
@@ -543,7 +542,12 @@ const renderHistoryScreen = (title, history, onClose, onEditEntry, onDeleteEntry
 
 const renderTabMenuOverlay = (type, menuTitle, menuItems) => {
     const menuDiv = document.createElement('div');
-    menuDiv.className = `home-menu-overlay ${type === 'freelancing' ? (state.showFreelancingMenu ? 'open' : '') : (state.showSellingMenu ? 'open' : '')}`;
+    menuDiv.className = `home-menu-overlay ${
+        type === 'freelancing' ? (state.showFreelancingMenu ? 'open' : '') :
+        type === 'selling'    ? (state.showSellingMenu ? 'open' : '') :
+        type === 'home'       ? (state.showHomeMenu ? 'open' : '') :
+        ''
+    }`;
     menuDiv.setAttribute('role', 'menu');
     menuDiv.setAttribute('aria-labelledby', `${type}-menu-fab`);
     menuDiv.innerHTML = `
@@ -555,11 +559,17 @@ const renderTabMenuOverlay = (type, menuTitle, menuItems) => {
     document.body.appendChild(menuDiv);
 
     const backdropDiv = document.createElement('div');
-    backdropDiv.className = `sidebar-backdrop ${type === 'freelancing' ? (state.showFreelancingMenu ? 'open' : '') : (state.showSellingMenu ? 'open' : '')}`;
-    backdropDiv.setAttribute('aria-hidden', String(!((type === 'freelancing' && state.showFreelancingMenu) || (type === 'selling' && state.showSellingMenu))));
+    backdropDiv.className = `sidebar-backdrop ${
+        type === 'freelancing' ? (state.showFreelancingMenu ? 'open' : '') :
+        type === 'selling'    ? (state.showSellingMenu ? 'open' : '') :
+        type === 'home'       ? (state.showHomeMenu ? 'open' : '') :
+        ''
+    }`;
+    backdropDiv.setAttribute('aria-hidden', String(!((type === 'freelancing' && state.showFreelancingMenu) || (type === 'selling' && state.showSellingMenu) || (type === 'home' && state.showHomeMenu))));
     backdropDiv.addEventListener('click', () => {
         if (type === 'freelancing') state.showFreelancingMenu = false;
-        else state.showSellingMenu = false;
+        else if (type === 'selling') state.showSellingMenu = false;
+        else if (type === 'home') state.showHomeMenu = false;
         renderApp();
     });
     document.body.appendChild(backdropDiv);
@@ -575,9 +585,11 @@ const renderTabMenuOverlay = (type, menuTitle, menuItems) => {
     const menuFab = document.getElementById(`${type}-menu-fab`);
 
     const handleClickOutside = (event) => {
+        // Ensure that the click target is not within the menuDiv or the menuFab itself
         if (!menuDiv.contains(event.target) && (!menuFab || !menuFab.contains(event.target))) {
             if (type === 'freelancing') state.showFreelancingMenu = false;
-            else state.showSellingMenu = false;
+            else if (type === 'selling') state.showSellingMenu = false;
+            else if (type === 'home') state.showHomeMenu = false;
             renderApp();
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
@@ -588,7 +600,8 @@ const renderTabMenuOverlay = (type, menuTitle, menuItems) => {
     const handleEscape = (event) => {
         if (event.key === 'Escape') {
             if (type === 'freelancing') state.showFreelancingMenu = false;
-            else state.showSellingMenu = false;
+            else if (type === 'selling') state.showSellingMenu = false;
+            else if (type === 'home') state.showHomeMenu = false;
             renderApp();
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
@@ -596,7 +609,7 @@ const renderTabMenuOverlay = (type, menuTitle, menuItems) => {
         }
     };
 
-    if ((type === 'freelancing' && state.showFreelancingMenu) || (type === 'selling' && state.showSellingMenu)) {
+    if ((type === 'freelancing' && state.showFreelancingMenu) || (type === 'selling' && state.showSellingMenu) || (type === 'home' && state.showHomeMenu)) {
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('touchstart', handleClickOutside);
         document.addEventListener('keydown', handleEscape);
@@ -812,23 +825,29 @@ const renderApp = () => {
                     <div class="input-row">
                         <div class="input-field-group">
                             <label for="freelancing-source-select" class="sr-only">Source of freelancing income</label>
-                            <select id="freelancing-source-select" class="dropdown-select" aria-label="Select income source" required>
-                                <option value="" disabled ${state.freelancingSourceInput === '' ? 'selected' : ''}>Select Source</option>
-                                ${state.freelancingSourceOptions.map(opt => `<option value="${opt}" ${state.freelancingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-                            </select>
+                            <div class="input-wrapper">
+                                <select id="freelancing-source-select" class="dropdown-select" aria-label="Select income source" required>
+                                    <option value="" disabled ${state.freelancingSourceInput === '' ? 'selected' : ''}>Select Source</option>
+                                    ${state.freelancingSourceOptions.map(opt => `<option value="${opt}" ${state.freelancingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                         <div class="input-field-group">
                             <label for="freelancing-type-select" class="sr-only">Type of freelancing work</label>
-                            <select id="freelancing-type-select" class="dropdown-select" aria-label="Select work type" required>
-                                <option value="" disabled ${state.freelancingTypeInput === '' ? 'selected' : ''}>Select Type</option>
-                                ${state.freelancingTypeOptions.map(opt => `<option value="${opt}" ${state.freelancingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-                            </select>
+                            <div class="input-wrapper">
+                                <select id="freelancing-type-select" class="dropdown-select" aria-label="Select work type" required>
+                                    <option value="" disabled ${state.freelancingTypeInput === '' ? 'selected' : ''}>Select Type</option>
+                                    ${state.freelancingTypeOptions.map(opt => `<option value="${opt}" ${state.freelancingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     <div class="input-field-group">
                         <label for="freelancing-note-input" class="sr-only">Add notes for freelancing income</label>
-                        <textarea id="freelancing-note-input" class="note-textarea" placeholder="Add any relevant notes..." aria-label="Notes for freelancing income">${state.freelancingNoteInput}</textarea>
+                        <div class="input-wrapper">
+                            <textarea id="freelancing-note-input" class="note-textarea" placeholder="Add any relevant notes..." aria-label="Notes for freelancing income">${state.freelancingNoteInput}</textarea>
+                        </div>
                     </div>
 
                     <button id="save-freelancing-entry-btn">Save Entry</button>
@@ -947,23 +966,29 @@ const renderApp = () => {
                     <div class="input-row">
                         <div class="input-field-group">
                             <label for="selling-source-select" class="sr-only">Source of selling income</label>
-                            <select id="selling-source-select" class="dropdown-select" aria-label="Select income source" required>
-                                <option value="" disabled ${state.sellingSourceInput === '' ? 'selected' : ''}>Select Source</option>
-                                ${state.sellingSourceOptions.map(opt => `<option value="${opt}" ${state.sellingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-                            </select>
+                            <div class="input-wrapper">
+                                <select id="selling-source-select" class="dropdown-select" aria-label="Select income source" required>
+                                    <option value="" disabled ${state.sellingSourceInput === '' ? 'selected' : ''}>Select Source</option>
+                                    ${state.sellingSourceOptions.map(opt => `<option value="${opt}" ${state.sellingSourceInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                         <div class="input-field-group">
                             <label for="selling-type-select" class="sr-only">Type of selling product</label>
-                            <select id="selling-type-select" class="dropdown-select" aria-label="Select product type" required>
-                                <option value="" disabled ${state.sellingTypeInput === '' ? 'selected' : ''}>Select Type</option>
-                                ${state.sellingTypeOptions.map(opt => `<option value="${opt}" ${state.sellingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-                            </select>
+                            <div class="input-wrapper">
+                                <select id="selling-type-select" class="dropdown-select" aria-label="Select product type" required>
+                                    <option value="" disabled ${state.sellingTypeInput === '' ? 'selected' : ''}>Select Type</option>
+                                    ${state.sellingTypeOptions.map(opt => `<option value="${opt}" ${state.sellingTypeInput === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     <div class="input-field-group">
                         <label for="selling-note-input" class="sr-only">Add notes for selling income</label>
-                        <textarea id="selling-note-input" class="note-textarea" placeholder="Add any relevant notes..." aria-label="Notes for selling income">${state.sellingNoteInput}</textarea>
+                        <div class="input-wrapper">
+                            <textarea id="selling-note-input" class="note-textarea" placeholder="Add any relevant notes..." aria-label="Notes for selling income">${state.sellingNoteInput}</textarea>
+                        </div>
                     </div>
 
                     <button id="save-selling-entry-btn">Save Entry</button>
@@ -1283,3 +1308,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderApp();
 });
+    
